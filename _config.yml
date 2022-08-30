@@ -18,10 +18,19 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: Parsons UI Example
-email: support@codio.com
+title: Parsons UI
+email: j.galan@vcj.sch.je
 description: # >- # this means to ignore newlines until "baseurl:"
-  Computer Science department - Victoria College, Jersey.
+  Parson’s puzzles are designed to get you thinking about the order of code,
+  and think logically about how code can be constructed.
+
+  In a Parson’s puzzle you have all the code that you need –
+  you just need to put it into the right order!
+
+  In terms of computational thinking,
+  the puzzle is asking you to think about the design of the algorithm,
+  without having to worry about the actual code you need
+  or that you have got the syntax correct.
 
   Instructions -
   Drag or shuffle the blocks of code in the practice problems below.
@@ -29,6 +38,7 @@ description: # >- # this means to ignore newlines until "baseurl:"
 
   To check your work, press the "Get Feedback" button.
   To start over, press the "Reset Problem" button.
+
 baseurl: "/hosting-parsons-on-github-template" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username:
