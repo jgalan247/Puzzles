@@ -20,6 +20,13 @@
       or <span class="wl-swatch absent">grey</span> (not in the word). You get 6 tries.
     </p>
 
+    <section class="wl-stats" aria-label="Your stats">
+      <div class="wl-stat"><span class="wl-stat-num" id="wl-score">0</span><span class="wl-stat-label">Score</span></div>
+      <div class="wl-stat"><span class="wl-stat-num" id="wl-streak">0</span><span class="wl-stat-label">Streak</span></div>
+      <div class="wl-stat"><span class="wl-stat-num" id="wl-best">0</span><span class="wl-stat-label">Best</span></div>
+      <div class="wl-stat"><span class="wl-stat-num" id="wl-wins">0</span><span class="wl-stat-label">Wins</span></div>
+    </section>
+
     <p id="wl-clue" class="wl-clue"></p>
     <div id="wl-board" class="wl-board"></div>
     <p id="wl-message" class="wl-message"></p>
@@ -29,7 +36,15 @@
       <button id="wl-new" type="button">New word</button>
       <button id="wl-reveal" type="button">Give up</button>
     </p>
+
+    <section class="wl-badges" aria-label="Badges">
+      <h2 class="wl-badges-title">Badges</h2>
+      <div id="wl-badge-list" class="wl-badge-list"></div>
+      <button id="wl-reset" type="button" class="wl-reset">Reset progress</button>
+    </section>
   </main>
+
+  <div id="wl-toast" class="wl-toast" role="status" aria-live="polite"></div>
 
   <script src="script.js"></script>
 </body>

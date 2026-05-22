@@ -23,8 +23,22 @@
     { term: "DEBUGGING",  clue: "The process of finding and fixing errors in a program." }
   ];
 
+  // --- Badges: unlocked when test() first returns true after a game ends ---
+  var BADGES = [
+    { id: "first_win", icon: "🎉", name: "First Win",    desc: "Win your first game",        test: function (s, c) { return c.won && s.wins >= 1; } },
+    { id: "ace",       icon: "🎯", name: "Ace",          desc: "Solve in a single guess",    test: function (s, c) { return c.won && c.guesses === 1; } },
+    { id: "sharp",     icon: "⚡", name: "Sharp",        desc: "Solve in 2 guesses or fewer", test: function (s, c) { return c.won && c.guesses <= 2; } },
+    { id: "streak3",   icon: "🔥", name: "On Fire",      desc: "Reach a 3-win streak",       test: function (s) { return s.streak >= 3; } },
+    { id: "streak5",   icon: "🚀", name: "Unstoppable",  desc: "Reach a 5-win streak",       test: function (s) { return s.streak >= 5; } },
+    { id: "streak10",  icon: "👑", name: "Legendary",    desc: "Reach a 10-win streak",      test: function (s) { return s.streak >= 10; } },
+    { id: "scholar",   icon: "🎓", name: "Scholar",      desc: "Win 10 games in total",      test: function (s) { return s.wins >= 10; } },
+    { id: "highscore", icon: "💎", name: "High Scorer",  desc: "Reach 500 points",           test: function (s) { return s.score >= 500; } }
+  ];
+
   var MAX_GUESSES = 6;
   var KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ENTER ZXCVBNM DEL"];
+  var STORE_KEY = "wordlet.stats.v1";
+  var DEFAULTS = { played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [] };
 
   var board = document.getElementById("wl-board");
   var keyboard = document.getElementById("wl-keyboard");
@@ -35,8 +49,113 @@
   var rowIndex = 0;
   var current = "";
   var over = false;
+  var recorded = true;
   var keyState = {};
+  var stats;
+  var toastTimer;
 
+  // ---- persistence (degrades to in-memory if localStorage is unavailable) ----
+  function loadStats() {
+    try {
+      var raw = window.localStorage.getItem(STORE_KEY);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        return {
+          played: saved.played || 0,
+          wins: saved.wins || 0,
+          streak: saved.streak || 0,
+          best: saved.best || 0,
+          score: saved.score || 0,
+          badges: saved.badges || []
+        };
+      }
+    } catch (e) { /* ignore */ }
+    return { played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [] };
+  }
+
+  function saveStats() {
+    try { window.localStorage.setItem(STORE_KEY, JSON.stringify(stats)); } catch (e) { /* ignore */ }
+  }
+
+  // ---- rendering ----
+  function renderStats() {
+    document.getElementById("wl-score").textContent = stats.score;
+    document.getElementById("wl-streak").textContent = stats.streak;
+    document.getElementById("wl-best").textContent = stats.best;
+    document.getElementById("wl-wins").textContent = stats.wins;
+  }
+
+  function renderBadges() {
+    var list = document.getElementById("wl-badge-list");
+    list.innerHTML = "";
+    BADGES.forEach(function (b) {
+      var earned = stats.badges.indexOf(b.id) !== -1;
+      var el = document.createElement("div");
+      el.className = "wl-badge" + (earned ? " earned" : "");
+      el.title = earned ? b.desc : b.desc + " (locked)";
+
+      var icon = document.createElement("span");
+      icon.className = "wl-badge-icon";
+      icon.textContent = b.icon;
+      var name = document.createElement("span");
+      name.className = "wl-badge-name";
+      name.textContent = b.name;
+
+      el.appendChild(icon);
+      el.appendChild(name);
+      list.appendChild(el);
+    });
+  }
+
+  function showToast(text) {
+    var t = document.getElementById("wl-toast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2800);
+  }
+
+  // ---- scoring / results ----
+  function checkBadges(won, guesses) {
+    var ctx = { won: won, guesses: guesses };
+    var newly = [];
+    BADGES.forEach(function (b) {
+      if (stats.badges.indexOf(b.id) === -1 && b.test(stats, ctx)) {
+        stats.badges.push(b.id);
+        newly.push(b);
+      }
+    });
+    return newly;
+  }
+
+  function recordResult(won, guesses) {
+    if (recorded) return { points: 0, newBadges: [] };
+    recorded = true;
+    stats.played++;
+    var points = 0;
+    if (won) {
+      stats.wins++;
+      stats.streak++;
+      if (stats.streak > stats.best) stats.best = stats.streak;
+      points = (MAX_GUESSES - guesses + 1) * 10 + stats.streak * 5;
+      stats.score += points;
+    } else {
+      stats.streak = 0;
+    }
+    var newBadges = checkBadges(won, guesses);
+    saveStats();
+    renderStats();
+    renderBadges();
+    return { points: points, newBadges: newBadges };
+  }
+
+  function announceBadges(newBadges) {
+    if (newBadges && newBadges.length) {
+      showToast("Badge unlocked: " + newBadges.map(function (b) { return b.icon + " " + b.name; }).join(", "));
+    }
+  }
+
+  // ---- board / keyboard ----
   function pickTerm() {
     return TERMS[Math.floor(Math.random() * TERMS.length)];
   }
@@ -156,26 +275,34 @@
 
     if (current === answer) {
       over = true;
-      setMessage("Correct! It's " + answer + " 🎉", "#6aaa64");
+      var res = recordResult(true, rowIndex + 1);
+      setMessage("Correct! It's " + answer + "  +" + res.points + " pts", "#6aaa64");
+      announceBadges(res.newBadges);
       return;
     }
     rowIndex++;
     current = "";
     if (rowIndex >= MAX_GUESSES) {
       over = true;
+      var lost = recordResult(false, MAX_GUESSES);
       setMessage("Out of tries — the answer was " + answer, "#b00020");
+      announceBadges(lost.newBadges);
     } else {
       setMessage("");
     }
   }
 
   function newGame() {
+    // abandoning a started-but-unfinished game counts as a loss
+    if (!recorded && rowIndex > 0) recordResult(false, MAX_GUESSES);
+
     var t = pickTerm();
     answer = t.term;
     clueEl.textContent = t.clue;
     rowIndex = 0;
     current = "";
     over = false;
+    recorded = false;
     keyState = {};
     setMessage("");
     buildBoard();
@@ -183,10 +310,22 @@
   }
 
   document.getElementById("wl-new").addEventListener("click", newGame);
+
   document.getElementById("wl-reveal").addEventListener("click", function () {
     if (over) return;
     over = true;
+    var lost = recordResult(false, rowIndex + 1);
     setMessage("The answer was " + answer, "#b00020");
+    announceBadges(lost.newBadges);
+  });
+
+  document.getElementById("wl-reset").addEventListener("click", function () {
+    if (!window.confirm("Reset your score, streaks and badges?")) return;
+    stats = { played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [] };
+    saveStats();
+    renderStats();
+    renderBadges();
+    showToast("Progress reset");
   });
 
   document.addEventListener("keydown", function (e) {
@@ -196,5 +335,9 @@
     else if (/^[a-zA-Z]$/.test(e.key)) { handleKey(e.key.toUpperCase()); }
   });
 
+  // ---- init ----
+  stats = loadStats();
+  renderStats();
+  renderBadges();
   newGame();
 })();

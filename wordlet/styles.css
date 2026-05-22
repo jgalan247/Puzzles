@@ -74,6 +74,49 @@ body {
 }
 .wl-controls button:hover { background: #0f5c5c; }
 
+/* stats bar */
+.wl-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  margin: 14px 0; text-align: center;
+}
+.wl-stat {
+  background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 8px 4px;
+}
+.wl-stat-num { display: block; font-size: 1.5em; font-weight: 800; color: var(--wl-accent); }
+.wl-stat-label { display: block; font-size: .72em; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+
+/* badges */
+.wl-badges { margin-top: 22px; }
+.wl-badges-title { font-size: 1.05em; margin: 0 0 8px; color: #333; }
+.wl-badge-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.wl-badge {
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid #e2e2e2; border-radius: 999px; padding: 5px 12px 5px 8px;
+  background: #f3f3f3; color: #9a9a9a; opacity: .6; filter: grayscale(1);
+}
+.wl-badge.earned {
+  background: #eaf5f4; border-color: var(--wl-accent); color: #0f5c5c;
+  opacity: 1; filter: none; font-weight: 600;
+}
+.wl-badge-icon { font-size: 1.15em; }
+.wl-badge-name { font-size: .85em; }
+.wl-reset {
+  margin-top: 14px; padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px;
+  background: #fff; color: #888; font-size: .8em; cursor: pointer;
+}
+.wl-reset:hover { color: #b00020; border-color: #b00020; }
+
+/* toast */
+.wl-toast {
+  position: fixed; left: 50%; top: 18px;
+  transform: translateX(-50%) translateY(-16px);
+  background: #1a1a1b; color: #fff; padding: 10px 18px; border-radius: 999px;
+  font-weight: 700; font-size: .9em; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease;
+  z-index: 50; max-width: 90vw; text-align: center;
+}
+.wl-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 @media (max-width: 480px) {
   .wl-tile { width: 38px; height: 38px; font-size: 1.3em; }
   .wl-key { min-width: 24px; height: 44px; padding: 0 5px; }
