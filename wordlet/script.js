@@ -1,67 +1,5 @@
----
-layout: default
-title: Wordlet - CS Vocabulary Game
----
-
-Read the **definition**, then guess the computer-science **term**. Each guess must be a real word of the right length. Tiles turn <span style="color:#6aaa64;font-weight:bold;">green</span> (right letter, right spot), <span style="color:#c9b458;font-weight:bold;">yellow</span> (right letter, wrong spot) or grey (not in the word). You get 6 tries.
-
-{% raw %}
-<div id="wordlet">
-  <p id="wl-clue" class="wl-clue"></p>
-  <div id="wl-board" class="wl-board"></div>
-  <p id="wl-message" class="wl-message"></p>
-  <div id="wl-keyboard" class="wl-keyboard"></div>
-  <p class="wl-controls">
-    <button id="wl-new" type="button">New word</button>
-    <button id="wl-reveal" type="button">Give up</button>
-  </p>
-</div>
-
-<style>
-#wordlet { max-width: 520px; margin: 0 auto; font-family: inherit; }
-#wordlet .wl-clue {
-  font-size: 1.15em; line-height: 1.45; background: #f4f7f7;
-  border-left: 4px solid #157878; padding: 12px 16px; border-radius: 4px;
-  min-height: 1.2em;
-}
-#wordlet .wl-board { display: grid; gap: 6px; justify-content: center; margin: 14px 0; }
-#wordlet .wl-row { display: grid; gap: 6px; justify-content: center; }
-#wordlet .wl-tile {
-  width: 48px; height: 48px; border: 2px solid #d3d6da; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.6em; font-weight: 700; text-transform: uppercase; color: #1a1a1b;
-  box-sizing: border-box; transition: transform .1s ease;
-}
-#wordlet .wl-tile.filled { border-color: #878a8c; transform: scale(1.04); }
-#wordlet .wl-tile.correct { background: #6aaa64; border-color: #6aaa64; color: #fff; }
-#wordlet .wl-tile.present { background: #c9b458; border-color: #c9b458; color: #fff; }
-#wordlet .wl-tile.absent  { background: #787c7e; border-color: #787c7e; color: #fff; }
-#wordlet .wl-message { text-align: center; font-weight: 700; min-height: 1.4em; margin: 8px 0; }
-#wordlet .wl-keyboard { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 6px; }
-#wordlet .wl-krow { display: flex; gap: 5px; justify-content: center; }
-#wordlet .wl-key {
-  min-width: 30px; height: 48px; padding: 0 8px; border: 0; border-radius: 4px;
-  background: #d3d6da; color: #1a1a1b; font-weight: 700; font-size: .95em;
-  cursor: pointer; text-transform: uppercase;
-}
-#wordlet .wl-key.wide { min-width: 56px; font-size: .75em; }
-#wordlet .wl-key.correct { background: #6aaa64; color: #fff; }
-#wordlet .wl-key.present { background: #c9b458; color: #fff; }
-#wordlet .wl-key.absent  { background: #787c7e; color: #fff; }
-#wordlet .wl-controls { text-align: center; margin-top: 14px; }
-#wordlet .wl-controls button {
-  margin: 0 6px; padding: 8px 16px; border: 0; border-radius: 4px;
-  background: #157878; color: #fff; font-weight: 700; cursor: pointer;
-}
-#wordlet .wl-controls button:hover { background: #0f5c5c; }
-@media (max-width: 480px) {
-  #wordlet .wl-tile { width: 38px; height: 38px; font-size: 1.3em; }
-  #wordlet .wl-key { min-width: 24px; height: 44px; padding: 0 5px; }
-}
-</style>
-
-<script type="text/javascript">
 (function () {
+  // --- Content: edit this list to add or change CS terms (single words, A-Z) ---
   var TERMS = [
     { term: "ALGORITHM",  clue: "A precise, step-by-step set of instructions for solving a problem." },
     { term: "VARIABLE",   clue: "A named storage location that holds a value which can change." },
@@ -260,5 +198,3 @@ Read the **definition**, then guess the computer-science **term**. Each guess mu
 
   newGame();
 })();
-</script>
-{% endraw %}

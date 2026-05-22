@@ -1,0 +1,80 @@
+:root {
+  --wl-correct: #6aaa64;
+  --wl-present: #c9b458;
+  --wl-absent: #787c7e;
+  --wl-accent: #157878;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1a1a1b;
+  background: #fafafa;
+}
+
+.wl-header {
+  background: var(--wl-accent);
+  color: #fff;
+  text-align: center;
+  padding: 22px 16px;
+}
+.wl-header h1 { margin: 0; font-size: 2em; letter-spacing: .04em; }
+.wl-header p { margin: 6px 0 0; opacity: .9; }
+
+#wordlet { max-width: 520px; margin: 20px auto; padding: 0 14px; }
+
+.wl-help {
+  font-size: .9em; color: #444; line-height: 1.5;
+  background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 10px 14px;
+}
+.wl-swatch { font-weight: 700; padding: 0 4px; border-radius: 3px; color: #fff; }
+.wl-swatch.correct { background: var(--wl-correct); }
+.wl-swatch.present { background: var(--wl-present); }
+.wl-swatch.absent  { background: var(--wl-absent); }
+
+.wl-clue {
+  font-size: 1.15em; line-height: 1.45; background: #f4f7f7;
+  border-left: 4px solid var(--wl-accent); padding: 12px 16px; border-radius: 4px;
+  min-height: 1.2em;
+}
+
+.wl-board { display: grid; gap: 6px; justify-content: center; margin: 14px 0; }
+.wl-row { display: grid; gap: 6px; justify-content: center; }
+.wl-tile {
+  width: 48px; height: 48px; border: 2px solid #d3d6da; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6em; font-weight: 700; text-transform: uppercase; color: #1a1a1b;
+  transition: transform .1s ease;
+}
+.wl-tile.filled { border-color: #878a8c; transform: scale(1.04); }
+.wl-tile.correct { background: var(--wl-correct); border-color: var(--wl-correct); color: #fff; }
+.wl-tile.present { background: var(--wl-present); border-color: var(--wl-present); color: #fff; }
+.wl-tile.absent  { background: var(--wl-absent);  border-color: var(--wl-absent);  color: #fff; }
+
+.wl-message { text-align: center; font-weight: 700; min-height: 1.4em; margin: 8px 0; }
+
+.wl-keyboard { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 6px; }
+.wl-krow { display: flex; gap: 5px; justify-content: center; }
+.wl-key {
+  min-width: 30px; height: 48px; padding: 0 8px; border: 0; border-radius: 4px;
+  background: #d3d6da; color: #1a1a1b; font-weight: 700; font-size: .95em;
+  cursor: pointer; text-transform: uppercase;
+}
+.wl-key.wide { min-width: 56px; font-size: .75em; }
+.wl-key.correct { background: var(--wl-correct); color: #fff; }
+.wl-key.present { background: var(--wl-present); color: #fff; }
+.wl-key.absent  { background: var(--wl-absent);  color: #fff; }
+
+.wl-controls { text-align: center; margin-top: 14px; }
+.wl-controls button {
+  margin: 0 6px; padding: 8px 16px; border: 0; border-radius: 4px;
+  background: var(--wl-accent); color: #fff; font-weight: 700; cursor: pointer;
+}
+.wl-controls button:hover { background: #0f5c5c; }
+
+@media (max-width: 480px) {
+  .wl-tile { width: 38px; height: 38px; font-size: 1.3em; }
+  .wl-key { min-width: 24px; height: 44px; padding: 0 5px; }
+}

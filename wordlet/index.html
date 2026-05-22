@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wordlet — CS Vocabulary Game</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="wl-header">
+    <h1>Wordlet</h1>
+    <p>Read the definition, then guess the computer-science term.</p>
+  </header>
+
+  <main id="wordlet">
+    <p class="wl-help">
+      Each guess must be a word of the right length. Tiles turn
+      <span class="wl-swatch correct">green</span> (right letter, right spot),
+      <span class="wl-swatch present">yellow</span> (right letter, wrong spot),
+      or <span class="wl-swatch absent">grey</span> (not in the word). You get 6 tries.
+    </p>
+
+    <p id="wl-clue" class="wl-clue"></p>
+    <div id="wl-board" class="wl-board"></div>
+    <p id="wl-message" class="wl-message"></p>
+    <div id="wl-keyboard" class="wl-keyboard"></div>
+
+    <p class="wl-controls">
+      <button id="wl-new" type="button">New word</button>
+      <button id="wl-reveal" type="button">Give up</button>
+    </p>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
