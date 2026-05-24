@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FDE Cycle — Fetch · Decode · Execute (RAM · Registers · ALU)</title>
+<style>
+  :root{
+    --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --fetch:#16f0ff; --decode:#b07cff; --execute:#19ff9b;
+    --addr:#ffb02e; --data:#16f0ff; --ctrl:#19ff9b; --int:#b07cff; --alu:#ff5d8f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  header h1{margin:0;font-size:clamp(20px,4vw,32px);letter-spacing:.16em;
+    background:linear-gradient(90deg,var(--fetch),var(--decode),var(--execute));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:6px 0 16px;color:#8aa0c8;font-size:13px;letter-spacing:.03em}
+  .stage{position:relative;border:1px solid var(--edge);border-radius:12px;overflow:hidden;
+    background:#04050a;box-shadow:0 0 40px rgba(22,240,255,.07)}
+  canvas{display:block;width:100%;height:auto}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  .controls button{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .controls button:hover{border-color:var(--fetch);color:#fff}
+  .controls label{font-size:12px;color:#8aa0c8;display:flex;gap:8px;align-items:center}
+  input[type=range]{accent-color:var(--fetch)}
+  footer{margin-top:22px;color:#5f7099;font-size:12px;line-height:1.6}
+  code{color:#bdd4ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>F E T C H · D E C O D E · E X E C U T E</h1>
+    <p>A Von Neumann CPU running a tiny program. Watch each micro-operation move data across the buses between RAM, registers and the ALU.</p>
+  </header>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <button id="play">⏸ Pause</button>
+    <button id="step">⏭ Step</button>
+    <button id="reset">↺ Reset</button>
+    <label>Speed <input id="speed" type="range" min="0.3" max="3" step="0.1" value="1" /></label>
+  </div>
+
+  <footer>
+    Program: <code>LDA 5 · ADD 6 · STA 7 · OUT · HLT</code> with data <code>7</code> and <code>5</code> in cells 5 and 6.
+    It loads 7, adds 5, stores 12 in cell 7, then outputs 12.
+    Buses are colour-coded: <span style="color:var(--addr)">address</span>,
+    <span style="color:var(--data)">data</span>,
+    <span style="color:var(--ctrl)">control</span>,
+    <span style="color:var(--int)">internal</span>,
+    <span style="color:var(--alu)">ALU</span>.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  const W=1000,H=620;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---- memory / program ----
+  function I(op,arg){return {kind:'I',op:op,arg:(arg===undefined?null:arg),
+    text:function(){return this.op+(this.arg!=null?' '+this.arg:'');}};}
+  function D(v){return {kind:'D',val:v,op:null,arg:null,text:function(){return String(this.val);}};}
+  let mem;
+  function initMem(){ mem=[ I('LDA',5),I('ADD',6),I('STA',7),I('OUT'),I('HLT'),D(7),D(5),D(0) ]; }
+
+  // ---- cpu state ----
+  let cpu;
+  function initCpu(){ cpu={PC:0,MAR:0,MDR:null,CIR:null,ACC:0,output:[],halted:false,lastALU:''}; }
+  function mdrText(){ if(cpu.MDR==null) return '—'; return (cpu.MDR.text)?cpu.MDR.text():String(cpu.MDR); }
+
+  // ---- layout ----
+  const RAM={x:36,y:96,w:214,ch:52,n:8};
+  function ramCell(i){return {x:RAM.x,y:RAM.y+i*RAM.ch,w:RAM.w,h:RAM.ch-8};}
+  function ramAnchor(i){return {x:RAM.x+RAM.w, y:RAM.y+i*RAM.ch+(RAM.ch-8)/2};}
+  const comps={
+    pc :{x:430,y:100,w:150,h:46,label:'PC',  get:()=>cpu.PC},
+    mar:{x:430,y:158,w:150,h:46,label:'MAR', get:()=>cpu.MAR},
+    mdr:{x:430,y:216,w:150,h:46,label:'MDR', get:()=>mdrText()},
+    cir:{x:430,y:274,w:150,h:46,label:'CIR', get:()=>cpu.CIR?cpu.CIR.text():'—'},
+    acc:{x:430,y:360,w:150,h:52,label:'ACC', get:()=>cpu.ACC},
+    cu :{x:430,y:452,w:214,h:74,label:'CONTROL UNIT', get:()=>''},
+    alu:{x:706,y:330,w:168,h:112,label:'ALU', get:()=>cpu.lastALU},
+    out:{x:706,y:470,w:230,h:96,label:'OUTPUT', get:()=>cpu.output.join('  ')}
+  };
+  const center=c=>({x:c.x+c.w/2,y:c.y+c.h/2});
+  function anchor(key){ return key==='ram'?ramAnchor(cpu.MAR):center(comps[key]); }
+  function busColor(b){ return css('--'+b); }
+
+  const connectors=[
+    ['mar','ram','addr'],['ram','mdr','data'],['pc','mar','int'],['mdr','cir','int'],
+    ['cir','cu','ctrl'],['acc','alu','alu'],['mdr','alu','data'],['alu','acc','alu'],
+    ['acc','out','data'],['acc','mdr','int']
+  ];
+
+  // ---- micro-op program (generator) ----
+  function exMAR(arg){return {phase:'EXECUTE',desc:'Copy operand ('+arg+') to MAR',from:'cir',to:'mar',bus:'addr',
+    value:()=>arg, action:()=>{cpu.MAR=arg;}};}
+  function exRead(arg){return {phase:'EXECUTE',desc:'Read data RAM['+arg+'] → MDR',from:'ram',to:'mdr',bus:'data',
+    value:()=>mem[arg].text(), action:()=>{cpu.MDR=mem[arg].val;}};}
+
+  function* run(){
+    while(true){
+      yield {phase:'FETCH',desc:'Copy address in PC → MAR',from:'pc',to:'mar',bus:'addr',
+        value:()=>cpu.PC, action:()=>{cpu.MAR=cpu.PC;}};
+      yield {phase:'FETCH',desc:'Fetch instruction RAM[MAR] → MDR',from:'ram',to:'mdr',bus:'data',
+        value:()=>mem[cpu.MAR].text(), action:()=>{cpu.MDR=mem[cpu.MAR];}};
+      yield {phase:'FETCH',desc:'Copy instruction MDR → CIR',from:'mdr',to:'cir',bus:'int',
+        value:()=>mem[cpu.MAR].text(), action:()=>{cpu.CIR=cpu.MDR;}};
+      yield {phase:'FETCH',desc:'Increment PC',from:'pc',to:'pc',bus:'int',
+        value:()=>cpu.PC+1, action:()=>{cpu.PC++;}};
+
+      yield {phase:'DECODE',desc:()=>'Decode '+cpu.CIR.text()+' in Control Unit',from:'cir',to:'cu',bus:'ctrl',
+        value:()=>cpu.CIR.text(), action:()=>{}};
+
+      const op=cpu.CIR.op, arg=cpu.CIR.arg;
+      if(op==='LDA'){
+        yield exMAR(arg); yield exRead(arg);
+        yield {phase:'EXECUTE',desc:'Copy MDR → ACC',from:'mdr',to:'acc',bus:'int',
+          value:()=>cpu.MDR, action:()=>{cpu.ACC=Number(cpu.MDR);}};
+      } else if(op==='ADD'||op==='SUB'){
+        const sym=op==='ADD'?'+':'−';
+        yield exMAR(arg); yield exRead(arg);
+        yield {phase:'EXECUTE',desc:'Send ACC → ALU',from:'acc',to:'alu',bus:'alu',
+          value:()=>cpu.ACC, action:()=>{}};
+        yield {phase:'EXECUTE',desc:'Send MDR → ALU',from:'mdr',to:'alu',bus:'data',
+          value:()=>cpu.MDR, action:()=>{}};
+        yield {phase:'EXECUTE',desc:'ALU: ACC '+sym+' MDR → ACC',from:'alu',to:'acc',bus:'alu',
+          value:()=> op==='ADD'? cpu.ACC+Number(cpu.MDR) : cpu.ACC-Number(cpu.MDR),
+          action:()=>{ cpu.ACC = op==='ADD'? cpu.ACC+Number(cpu.MDR) : cpu.ACC-Number(cpu.MDR); cpu.lastALU=sym; }};
+      } else if(op==='STA'){
+        yield exMAR(arg);
+        yield {phase:'EXECUTE',desc:'Copy ACC → MDR',from:'acc',to:'mdr',bus:'int',
+          value:()=>cpu.ACC, action:()=>{cpu.MDR=cpu.ACC;}};
+        yield {phase:'EXECUTE',desc:'Write MDR → RAM[MAR]',from:'mdr',to:'ram',bus:'data',
+          value:()=>cpu.MDR, action:()=>{mem[cpu.MAR]=D(Number(cpu.MDR));}};
+      } else if(op==='OUT'){
+        yield {phase:'EXECUTE',desc:'Send ACC → OUTPUT',from:'acc',to:'out',bus:'data',
+          value:()=>cpu.ACC, action:()=>{cpu.output.push(cpu.ACC);}};
+      } else if(op==='HLT'){
+        yield {phase:'EXECUTE',desc:'HALT — program complete',from:'cu',to:'cu',bus:'ctrl',
+          value:()=>'■', action:()=>{cpu.halted=true;}};
+        return;
+      }
+    }
+  }
+
+  // ---- engine ----
+  let gen,cur,sp,running,stepPending,speed=1;
+  const DUR=0.9;
+  function advance(){
+    const r=gen.next();
+    if(r.done){ cur=null; return; }
+    cur=r.value;
+    cur._val=(typeof cur.value==='function')?cur.value():cur.value;
+    cur._desc=(typeof cur.desc==='function')?cur.desc():cur.desc;
+    sp=0;
+  }
+  function reset(running0){
+    initMem(); initCpu(); gen=run(); cur=null; sp=0; stepPending=false;
+    running=!!running0; advance();
+    document.getElementById('play').textContent=running?'⏸ Pause':'▶ Play';
+  }
+
+  // ---- drawing helpers ----
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const ease=t=>t*t*(3-2*t);
+  function rrect(x,y,w,h,r){ ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function line(a,b,color,w){ ctx.strokeStyle=color; ctx.lineWidth=w;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  function glowDot(p,color,r){ ctx.save(); ctx.shadowBlur=18; ctx.shadowColor=color;
+    ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+  function pill(p,txt,color){
+    ctx.font='bold 13px monospace'; const w=ctx.measureText(txt).width+16;
+    ctx.fillStyle='rgba(4,6,14,.9)'; ctx.strokeStyle=color; ctx.lineWidth=1.5;
+    rrect(p.x-w/2,p.y-26,w,20,6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=color; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(txt,p.x,p.y-16); ctx.textBaseline='alphabetic';
+  }
+
+  function drawGrid(){
+    ctx.strokeStyle='rgba(40,55,90,0.16)'; ctx.lineWidth=1;
+    for(let x=0;x<=W;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<=H;y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  }
+  function isActive(key){ return cur && (cur.from===key||cur.to===key); }
+
+  function drawRAM(){
+    ctx.fillStyle='#7d93bd'; ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillText('RAM (memory)',RAM.x,RAM.y-12);
+    const ramHot = cur && (cur.from==='ram'||cur.to==='ram');
+    for(let i=0;i<RAM.n;i++){
+      const c=ramCell(i);
+      const isMAR=(i===cpu.MAR), isPC=(i===cpu.PC);
+      ctx.save();
+      if(isMAR&&ramHot){ ctx.shadowBlur=18; ctx.shadowColor=css('--addr'); }
+      ctx.fillStyle='#0b1426';
+      ctx.strokeStyle = isMAR&&ramHot?css('--addr'): isPC?'#3a4a6c':'#283651';
+      ctx.lineWidth = isMAR&&ramHot?2.2:1.2;
+      rrect(c.x,c.y,c.w,c.h,7); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle='#6b7ea6'; ctx.font='11px monospace'; ctx.textAlign='left';
+      ctx.fillText(String(i),c.x+10,c.y+c.h/2+4);
+      const cell=mem[i];
+      ctx.fillStyle = cell.kind==='I'?'#bdeaff':'#ffd9a0';
+      ctx.font='bold 14px monospace'; ctx.textAlign='right';
+      ctx.fillText(cell.text(),c.x+c.w-12,c.y+c.h/2+5);
+      if(isPC){ ctx.fillStyle=css('--fetch'); ctx.font='10px monospace'; ctx.textAlign='left';
+        ctx.fillText('◀ PC',c.x+c.w+6,c.y+c.h/2+4); }
+    }
+  }
+
+  function drawComp(key){
+    const c=comps[key], a=isActive(key), col=a?busColor(cur.bus):'#33415f';
+    ctx.save();
+    if(a){ ctx.shadowBlur=20; ctx.shadowColor=col; }
+    ctx.fillStyle = a? 'rgba(22,240,255,0.05)':'#0b1426';
+    ctx.strokeStyle=col; ctx.lineWidth=a?2.2:1.4;
+    rrect(c.x,c.y,c.w,c.h,9); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = a? '#ffffff':'#7d93bd'; ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillText(c.label,c.x+10,c.y+16);
+    const v=c.get();
+    if(v!=='' && key!=='out' && key!=='cu'){
+      ctx.fillStyle = a? '#ffffff':'#cfe6ff'; ctx.font='bold 18px monospace'; ctx.textAlign='right';
+      ctx.fillText(String(v),c.x+c.w-12,c.y+c.h-12);
+    }
+    if(key==='out'){
+      ctx.fillStyle='#9affd0'; ctx.font='bold 20px monospace'; ctx.textAlign='left';
+      ctx.fillText(cpu.output.join('   '),c.x+12,c.y+c.h-14);
+    }
+    if(key==='cu'){
+      ctx.fillStyle='#8aa0c8'; ctx.font='10px monospace'; ctx.textAlign='right';
+      ctx.fillText('decode + sequence',c.x+c.w-10,c.y+c.h-10);
+    }
+    if(key==='alu'){
+      ctx.fillStyle='#ff9fbf'; ctx.font='12px monospace'; ctx.textAlign='center';
+      ctx.fillText('Σ  '+(cpu.lastALU||''),c.x+c.w/2,c.y+c.h-14);
+    }
+  }
+
+  function drawConnectors(){
+    connectors.forEach(([f,t,b])=>{
+      const a=anchor(f), z=anchor(t);
+      ctx.strokeStyle='rgba(70,90,130,0.20)'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(z.x,z.y); ctx.stroke();
+    });
+  }
+
+  function drawActive(){
+    if(!cur) return;
+    const col=busColor(cur.bus);
+    const a=anchor(cur.from), b=anchor(cur.to);
+    const t=ease(sp);
+    let p;
+    if(cur.from===cur.to){
+      const cx=a.x, cy=a.y-(comps[cur.from]?comps[cur.from].h/2:0)-12;
+      const ang=-Math.PI*0.2 + t*Math.PI*1.6;
+      p={x:cx+26*Math.cos(ang), y:cy+16*Math.sin(ang)};
+    } else {
+      line(a,b,col,2.2);
+      p={x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t)};
+    }
+    glowDot(p,col,6);
+    pill(p,String(cur._val),col);
+  }
+
+  function drawHUD(){
+    const phase = cpu.halted? 'HALTED' : (cur? cur.phase : 'HALTED');
+    const pc = phase==='FETCH'?css('--fetch'):phase==='DECODE'?css('--decode'):phase==='EXECUTE'?css('--execute'):'#ff5d6c';
+    ctx.font='bold 16px monospace'; const tw=ctx.measureText(phase).width+24;
+    ctx.save(); ctx.shadowBlur=16; ctx.shadowColor=pc;
+    ctx.fillStyle='rgba(4,6,14,.8)'; ctx.strokeStyle=pc; ctx.lineWidth=2;
+    rrect(36,26,tw,30,8); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle=pc; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText(phase,48,42); ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#cfe6ff'; ctx.font='14px monospace';
+    ctx.fillText(cur?cur._desc:'Program finished — press Reset', 36+tw+16, 46);
+  }
+
+  function drawLegend(){
+    const items=[['addr','address'],['data','data'],['ctrl','control'],['int','internal'],['alu','ALU']];
+    let x=36; const y=H-16;
+    ctx.font='11px monospace'; ctx.textBaseline='middle';
+    items.forEach(([b,name])=>{
+      ctx.fillStyle=busColor(b); ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#8aa0c8'; ctx.textAlign='left'; ctx.fillText(name,x+10,y);
+      x+=14+ctx.measureText(name).width+18;
+    });
+    ctx.textBaseline='alphabetic';
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    drawGrid();
+    drawConnectors();
+    drawRAM();
+    ['pc','mar','mdr','cir','acc','cu','alu','out'].forEach(drawComp);
+    drawActive();
+    drawHUD();
+    drawLegend();
+  }
+
+  // ---- loop ----
+  let last=performance.now();
+  function frame(now){
+    const dt=Math.min(0.05,(now-last)/1000); last=now;
+    if(cur && (running||stepPending)){
+      sp += dt*speed/DUR;
+      if(sp>=1){
+        sp=1;
+        if(cur.action) cur.action();
+        advance();
+        if(stepPending){ stepPending=false; }
+      }
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- controls ----
+  document.getElementById('play').addEventListener('click',e=>{
+    if(!cur) reset(true);
+    else { running=!running; e.target.textContent=running?'⏸ Pause':'▶ Play'; }
+  });
+  document.getElementById('step').addEventListener('click',()=>{
+    if(!cur) reset(false);
+    running=false; document.getElementById('play').textContent='▶ Play';
+    stepPending=true;
+  });
+  document.getElementById('reset').addEventListener('click',()=>reset(false));
+  document.getElementById('speed').addEventListener('input',e=>{ speed=parseFloat(e.target.value); });
+
+  reset(true);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
