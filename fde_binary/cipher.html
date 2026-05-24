@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cipher Explorer — Caesar &amp; XOR</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --a:#16f0ff; --b:#ff5d8f; --green:#19ff9b; --accent:#b07cff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px 16px 56px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--a)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--a),var(--b));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 18px;color:#8aa0c8;font-size:13px}
+  h2{font-size:14px;letter-spacing:.12em;color:#9fb4d8;text-transform:uppercase;margin:28px 0 12px}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:18px}
+  label{font-size:12px;color:#8aa0c8;display:block;margin:0 0 6px}
+  input[type=text],textarea{width:100%;font:inherit;color:var(--txt);background:#0a0f1c;
+    border:1px solid var(--edge);border-radius:8px;padding:10px 12px;resize:vertical}
+  textarea{min-height:64px}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  input[type=range]{accent-color:var(--a)}
+  button{font:inherit;color:var(--txt);background:#0a0f1c;border:1px solid var(--edge);
+    border-radius:8px;padding:8px 12px;cursor:pointer} button:hover{border-color:var(--a);color:#fff}
+  .result{margin-top:14px;background:#0a0f1c;border:1px solid var(--edge);border-radius:8px;
+    padding:12px;min-height:20px;color:var(--green);word-break:break-all;white-space:pre-wrap}
+  .wheel{display:flex;gap:3px;flex-wrap:wrap;margin-top:14px;font-size:12px}
+  .map{display:flex;flex-direction:column;align-items:center;background:#0a0f1c;border:1px solid var(--edge);
+    border-radius:6px;padding:4px 6px;min-width:26px}
+  .map .from{color:#7d93bd} .map .to{color:var(--a);font-weight:700}
+  .brute{margin-top:12px;font-size:12px;max-height:230px;overflow:auto}
+  .brute div{padding:3px 6px;border-bottom:1px solid var(--edge);display:flex;gap:10px}
+  .brute .s{color:#7d93bd;min-width:46px}
+  .brute .t{color:#cfe6ff}
+  .hexout{color:#bff8ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>CIPHER EXPLORER</h1>
+  <p class="sub">Two classic ciphers. Caesar shifts each letter; XOR combines each byte with a key — and undoes itself when you apply the same key twice.</p>
+
+  <h2>Caesar cipher</h2>
+  <div class="panel">
+    <label>Plain / cipher text</label>
+    <textarea id="ctext">Meet at dawn.</textarea>
+    <div class="row">
+      <label style="margin:0">Shift: <b id="shiftv" style="color:var(--a)">3</b></label>
+      <input id="shift" type="range" min="0" max="25" value="3" style="flex:1;min-width:160px" />
+      <button id="cenc">Encrypt →</button>
+      <button id="cdec">← Decrypt</button>
+    </div>
+    <div class="result" id="cres"></div>
+    <div class="wheel" id="wheel"></div>
+    <h2 style="margin-top:22px">Brute-force (try all 25 shifts)</h2>
+    <div class="brute" id="brute"></div>
+  </div>
+
+  <h2>XOR cipher</h2>
+  <div class="panel">
+    <label>Text</label>
+    <textarea id="xtext">secret</textarea>
+    <div class="row">
+      <label style="margin:0;flex:1">Key (repeats)
+        <input id="xkey" type="text" value="KEY" />
+      </label>
+    </div>
+    <label style="margin-top:12px">Cipher bytes (hex)</label>
+    <div class="result hexout" id="xhex"></div>
+    <label style="margin-top:12px">XOR the hex with the same key again →</label>
+    <div class="result" id="xback"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $=id=>document.getElementById(id);
+  const AZ='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  function caesar(str,shift){
+    shift=((shift%26)+26)%26;
+    let out='';
+    for(const ch of str){
+      const u=ch.toUpperCase(), i=AZ.indexOf(u);
+      if(i<0){ out+=ch; continue; }
+      const m=AZ[(i+shift)%26];
+      out+= (ch===u)? m : m.toLowerCase();
+    }
+    return out;
+  }
+  function renderCaesar(){
+    const s=parseInt($('shift').value,10);
+    $('shiftv').textContent=s;
+    $('cres').textContent=caesar($('ctext').value,s);
+    // wheel
+    const w=$('wheel'); w.innerHTML='';
+    for(let i=0;i<26;i++){
+      const d=document.createElement('div'); d.className='map';
+      d.innerHTML='<span class="from">'+AZ[i]+'</span><span class="to">'+AZ[(i+s)%26]+'</span>';
+      w.appendChild(d);
+    }
+    // brute force from current text treated as cipher
+    const b=$('brute'); b.innerHTML='';
+    const txt=$('ctext').value;
+    for(let k=1;k<26;k++){
+      const d=document.createElement('div');
+      d.innerHTML='<span class="s">shift '+k+'</span><span class="t">'+escapeHtml(caesar(txt,-k))+'</span>';
+      b.appendChild(d);
+    }
+  }
+  function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+  $('shift').addEventListener('input',renderCaesar);
+  $('ctext').addEventListener('input',renderCaesar);
+  $('cenc').addEventListener('click',()=>{ $('ctext').value=caesar($('ctext').value,parseInt($('shift').value,10)); renderCaesar(); });
+  $('cdec').addEventListener('click',()=>{ $('ctext').value=caesar($('ctext').value,-parseInt($('shift').value,10)); renderCaesar(); });
+
+  function xorBytes(str,key){
+    const out=[];
+    for(let i=0;i<str.length;i++){
+      const c=str.charCodeAt(i), k=key.length?key.charCodeAt(i%key.length):0;
+      out.push(c^k);
+    }
+    return out;
+  }
+  function renderXor(){
+    const txt=$('xtext').value, key=$('xkey').value;
+    const bytes=xorBytes(txt,key);
+    $('xhex').textContent=bytes.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(' ');
+    // apply same key to the cipher bytes -> original
+    let back='';
+    for(let i=0;i<bytes.length;i++){ const k=key.length?key.charCodeAt(i%key.length):0; back+=String.fromCharCode(bytes[i]^k); }
+    $('xback').textContent=back;
+  }
+  $('xtext').addEventListener('input',renderXor);
+  $('xkey').addEventListener('input',renderXor);
+
+  renderCaesar(); renderXor();
+})();
+</script>
+</body>
+</html>

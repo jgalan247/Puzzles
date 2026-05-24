@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Number Bases &amp; ASCII Explorer</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --one:#16f0ff; --zero:#222c44; --accent:#ffb02e; --green:#19ff9b; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px 16px 56px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--one)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--one),var(--accent));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 20px;color:#8aa0c8;font-size:13px}
+  h2{font-size:14px;letter-spacing:.12em;color:#9fb4d8;text-transform:uppercase;margin:30px 0 12px}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:18px}
+  .bits{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  .bitcol{display:flex;flex-direction:column;align-items:center;gap:5px}
+  .pv{font-size:11px;color:#7d93bd}
+  .bit{width:52px;height:56px;border-radius:8px;border:1px solid var(--edge);background:#0a0f1c;
+    color:#3a4663;font-size:24px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:all .12s}
+  .bit.on{background:rgba(22,240,255,.16);border-color:var(--one);color:#bff8ff;box-shadow:0 0 16px rgba(22,240,255,.35)}
+  .pos{font-size:10px;color:#566}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 4px;justify-content:center}
+  button,select,input[type=text]{font:inherit;color:var(--txt);background:#0a0f1c;
+    border:1px solid var(--edge);border-radius:8px;padding:8px 12px}
+  button,select{cursor:pointer} button:hover,select:hover{border-color:var(--one);color:#fff}
+  .out{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:18px}
+  .chip{background:#0a0f1c;border:1px solid var(--edge);border-radius:10px;padding:10px 12px}
+  .chip .k{font-size:11px;color:#7d93bd;letter-spacing:.1em}
+  .chip .v{font-size:20px;color:#fff;margin-top:3px;word-break:break-all}
+  .sum{margin-top:14px;color:#9fb4d8;font-size:13px;line-height:1.7;text-align:center}
+  .sum b{color:var(--one)}
+  input[type=text]{width:100%;cursor:text}
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--edge)}
+  th{color:#7d93bd;font-weight:400;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  td.mono{color:#bff8ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>NUMBER BASES &amp; ASCII</h1>
+  <p class="sub">Flip bits to build a number, and see it in binary, denary, hexadecimal and octal at once. Then encode text into bytes.</p>
+
+  <h2>Binary place-value</h2>
+  <div class="panel">
+    <div class="bits" id="bits"></div>
+    <div class="controls">
+      <label style="color:#8aa0c8;font-size:12px">Bits
+        <select id="width"><option>8</option><option>16</option></select>
+      </label>
+      <button id="dec">− 1</button>
+      <button id="inc">+ 1</button>
+      <button id="rand">🎲 Random</button>
+      <button id="clr">Clear</button>
+    </div>
+    <div class="out">
+      <div class="chip"><div class="k">DENARY (base 10)</div><div class="v" id="o10">0</div></div>
+      <div class="chip"><div class="k">BINARY (base 2)</div><div class="v" id="o2">0</div></div>
+      <div class="chip"><div class="k">HEX (base 16)</div><div class="v" id="o16">0x0</div></div>
+      <div class="chip"><div class="k">OCTAL (base 8)</div><div class="v" id="o8">0o0</div></div>
+    </div>
+    <div class="sum" id="sum">click bits to begin</div>
+  </div>
+
+  <h2>Text → bytes</h2>
+  <div class="panel">
+    <input id="text" type="text" value="Hi!" placeholder="type text to encode…" />
+    <table>
+      <thead><tr><th>char</th><th>denary</th><th>hex</th><th>binary (8-bit)</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  let width=8, bits=[];
+  const $=id=>document.getElementById(id);
+
+  function build(){
+    bits=new Array(width).fill(0);
+    const wrap=$('bits'); wrap.innerHTML='';
+    for(let k=0;k<width;k++){
+      const pos=width-1-k;            // MSB first
+      const col=document.createElement('div'); col.className='bitcol';
+      const pv=document.createElement('div'); pv.className='pv'; pv.textContent=Math.pow(2,pos);
+      const b=document.createElement('div'); b.className='bit'; b.textContent='0'; b.dataset.pos=pos;
+      b.addEventListener('click',()=>{ bits[pos]^=1; render(); });
+      const ps=document.createElement('div'); ps.className='pos'; ps.textContent='2^'+pos;
+      col.appendChild(pv); col.appendChild(b); col.appendChild(ps);
+      wrap.appendChild(col);
+    }
+    render();
+  }
+  function value(){ let v=0; for(let i=0;i<width;i++) v+=bits[i]*Math.pow(2,i); return v; }
+  function setValue(v){ v=((v%Math.pow(2,width))+Math.pow(2,width))%Math.pow(2,width);
+    for(let i=0;i<width;i++) bits[i]=(v>>i)&1; render(); }
+  function render(){
+    const cells=document.querySelectorAll('#bits .bit');
+    cells.forEach(c=>{ const pos=+c.dataset.pos; const on=bits[pos]===1;
+      c.classList.toggle('on',on); c.textContent=on?'1':'0'; });
+    const v=value();
+    $('o10').textContent=v;
+    $('o2').textContent=v.toString(2).padStart(width,'0');
+    $('o16').textContent='0x'+v.toString(16).toUpperCase();
+    $('o8').textContent='0o'+v.toString(8);
+    const parts=[];
+    for(let pos=width-1;pos>=0;pos--){ if(bits[pos]) parts.push(Math.pow(2,pos)); }
+    $('sum').innerHTML = parts.length? parts.map(p=>'<b>'+p+'</b>').join(' + ')+' = <b>'+v+'</b>' : 'all bits 0 → value <b>0</b>';
+  }
+
+  $('width').addEventListener('change',e=>{ width=parseInt(e.target.value,10); build(); });
+  $('inc').addEventListener('click',()=>setValue(value()+1));
+  $('dec').addEventListener('click',()=>setValue(value()-1));
+  $('rand').addEventListener('click',()=>setValue(Math.floor(Math.random()*Math.pow(2,width))));
+  $('clr').addEventListener('click',()=>setValue(0));
+
+  function encode(){
+    const txt=$('text').value; const tb=$('tbody'); tb.innerHTML='';
+    for(const ch of txt){
+      const code=ch.codePointAt(0);
+      const tr=document.createElement('tr');
+      const disp = ch===' '? '␠' : ch;
+      tr.innerHTML='<td>'+escapeHtml(disp)+'</td><td>'+code+'</td><td class="mono">0x'+code.toString(16).toUpperCase()+
+        '</td><td class="mono">'+(code<256?code.toString(2).padStart(8,'0'):code.toString(2))+'</td>';
+      tb.appendChild(tr);
+    }
+  }
+  function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  $('text').addEventListener('input',encode);
+
+  build();
+  setValue(172);
+  encode();
+})();
+</script>
+</body>
+</html>
