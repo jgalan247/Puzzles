@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Logic Gates &amp; the Full Adder</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --one:#16f0ff; --zero:#2a3650; --hot:#19ff9b; --accent:#ffb02e; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1000px;margin:0 auto;padding:18px 16px 56px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--one)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--one),var(--hot));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  h2{font-size:14px;letter-spacing:.12em;color:#9fb4d8;text-transform:uppercase;margin:28px 0 12px}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:18px}
+  .gaterow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  button{font:inherit;color:var(--txt);background:#0a0f1c;border:1px solid var(--edge);
+    border-radius:8px;padding:8px 12px;cursor:pointer} button:hover{border-color:var(--one);color:#fff}
+  button.sel{border-color:var(--one);color:#fff;background:rgba(22,240,255,.12)}
+  .live{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .toggle{width:64px;height:64px;border-radius:10px;border:1px solid var(--edge);background:#0a0f1c;
+    color:#3a4663;font-size:28px;font-weight:700;cursor:pointer}
+  .toggle.on{background:rgba(22,240,255,.16);border-color:var(--one);color:#bff8ff;box-shadow:0 0 16px rgba(22,240,255,.4)}
+  .toggle.dis{opacity:.3;pointer-events:none}
+  .eq{font-size:20px;color:#cfe6ff}
+  .res{font-size:28px;font-weight:700}
+  .res.on{color:var(--hot)} .res.off{color:#566}
+  table{border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{padding:6px 16px;border:1px solid var(--edge);text-align:center}
+  th{color:#7d93bd;font-weight:400;font-size:12px}
+  tr.cur td{background:rgba(255,176,46,.14);color:#fff}
+  td.out1{color:var(--hot)} td.out0{color:#566}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;margin-top:6px}
+  canvas{display:block;width:100%;height:auto;cursor:pointer}
+  .hint{color:#5f7099;font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>LOGIC GATES &amp; THE FULL ADDER</h1>
+  <p class="sub">Learn each gate from its truth table, then see how a handful of gates combine into a circuit that adds binary digits.</p>
+
+  <h2>Single gate</h2>
+  <div class="panel">
+    <div class="gaterow" id="gates"></div>
+    <div class="live">
+      <div class="toggle" id="ta">0</div>
+      <span class="eq" id="gname">AND</span>
+      <div class="toggle" id="tb">0</div>
+      <span class="eq">=</span>
+      <span class="res off" id="gout">0</span>
+    </div>
+    <div id="ttable"></div>
+    <div class="hint">Click the input squares to toggle them. The matching row of the truth table lights up.</div>
+  </div>
+
+  <h2>Full adder — add three bits (A + B + carry-in)</h2>
+  <div class="stage"><canvas id="cv"></canvas></div>
+  <div class="hint">Click the A, B and Cin inputs on the left. Green wires carry a 1; gates glow when their output is 1. Sum and Cout together form a 2-bit result.</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $=id=>document.getElementById(id);
+  // ---------- single gate ----------
+  const GATES={
+    AND:(a,b)=>a&&b, OR:(a,b)=>a||b, XOR:(a,b)=>a!==b,
+    NAND:(a,b)=>!(a&&b), NOR:(a,b)=>!(a||b), XNOR:(a,b)=>a===b, NOT:(a)=>!a
+  };
+  let gate='AND', A=false, B=false;
+  const gr=$('gates');
+  Object.keys(GATES).forEach(g=>{ const b=document.createElement('button'); b.textContent=g;
+    b.addEventListener('click',()=>{ gate=g; renderGate(); }); gr.appendChild(b); });
+  $('ta').addEventListener('click',()=>{ A=!A; renderGate(); });
+  $('tb').addEventListener('click',()=>{ B=!B; renderGate(); });
+  function evalGate(g,a,b){ return g==='NOT'? GATES.NOT(a) : GATES[g](a,b); }
+  function renderGate(){
+    [...gr.children].forEach(b=>b.classList.toggle('sel',b.textContent===gate));
+    $('gname').textContent=gate;
+    const isNot=gate==='NOT';
+    $('tb').classList.toggle('dis',isNot);
+    $('ta').classList.toggle('on',A); $('ta').textContent=A?'1':'0';
+    $('tb').classList.toggle('on',B&&!isNot); $('tb').textContent=B?'1':'0';
+    const out=evalGate(gate,A,B);
+    const o=$('gout'); o.textContent=out?'1':'0'; o.className='res '+(out?'on':'off');
+    // truth table
+    const rows = isNot? [[0],[1]] : [[0,0],[0,1],[1,0],[1,1]];
+    let html='<table><thead><tr><th>A</th>'+(isNot?'':'<th>B</th>')+'<th>out</th></tr></thead><tbody>';
+    rows.forEach(r=>{
+      const a=!!r[0], b=!!r[1]; const res=evalGate(gate,a,b);
+      const cur = isNot? (a===A) : (a===A&&b===B);
+      html+='<tr class="'+(cur?'cur':'')+'"><td>'+r[0]+'</td>'+(isNot?'':'<td>'+r[1]+'</td>')+
+        '<td class="out'+(res?1:0)+'">'+(res?1:0)+'</td></tr>';
+    });
+    html+='</tbody></table>'; $('ttable').innerHTML=html;
+  }
+  renderGate();
+
+  // ---------- full adder ----------
+  const cv=$('cv'), ctx=cv.getContext('2d');
+  const W=900,H=420;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  let fa={A:0,B:0,Cin:0};
+  const dots={ A:{x:60,y:95}, B:{x:60,y:205}, Cin:{x:60,y:330} };
+  const boxes={
+    xor1:{x:170,y:78,t:'XOR'}, and1:{x:170,y:182,t:'AND'},
+    xor2:{x:400,y:150,t:'XOR'}, and2:{x:400,y:288,t:'AND'},
+    or1 :{x:620,y:230,t:'OR'}
+  };
+  const BW=78,BH=52;
+  const inP=(b,which)=>({x:boxes[b].x, y:boxes[b].y+(which?38:14)});
+  const outP=b=>({x:boxes[b].x+BW, y:boxes[b].y+BH/2});
+
+  function signals(){
+    const A=fa.A,B=fa.B,C=fa.Cin;
+    const x1=A^B, a1=A&B, s=x1^C, a2=x1&C, cout=a1|a2;
+    return {x1,a1,s,a2,cout};
+  }
+  function wire(sx,sy,dx,dy,on){
+    ctx.strokeStyle= on? css('--hot'):'rgba(70,90,130,.45)';
+    ctx.lineWidth= on?2.6:1.5;
+    ctx.beginPath(); ctx.moveTo(sx,sy);
+    const mx=(sx+dx)/2; ctx.lineTo(mx,sy); ctx.lineTo(mx,dy); ctx.lineTo(dx,dy); ctx.stroke();
+    if(on){ ctx.fillStyle=css('--hot'); ctx.beginPath(); ctx.arc(dx,dy,3,0,7); ctx.fill(); }
+  }
+  function box(b,on){
+    const o=boxes[b];
+    ctx.save(); if(on){ctx.shadowBlur=18;ctx.shadowColor=css('--hot');}
+    ctx.fillStyle= on?'rgba(25,255,155,.14)':'#0b1426'; ctx.strokeStyle= on?css('--hot'):'#33415f'; ctx.lineWidth=on?2.2:1.5;
+    rrect(o.x,o.y,BW,BH,10); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle= on?'#bdffe1':'#9fb4d8'; ctx.font='bold 15px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(o.t,o.x+BW/2,o.y+BH/2); ctx.textBaseline='alphabetic';
+  }
+  function rrect(x,y,w,h,r){ ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function dot(key,val){
+    const d=dots[key];
+    ctx.save(); if(val){ctx.shadowBlur=14;ctx.shadowColor=css('--one');}
+    ctx.fillStyle= val?'rgba(22,240,255,.2)':'#0a0f1c'; ctx.strokeStyle= val?css('--one'):'#33415f'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(d.x,d.y,18,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle= val?'#bff8ff':'#9fb4d8'; ctx.font='bold 16px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String(val),d.x,d.y); ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#7d93bd'; ctx.font='12px monospace'; ctx.textAlign='right'; ctx.fillText(key,d.x-26,d.y+5);
+  }
+  function outLabel(x,y,name,val){
+    ctx.save(); if(val){ctx.shadowBlur=14;ctx.shadowColor=css('--hot');}
+    ctx.fillStyle= val?css('--hot'):'#101a30'; ctx.strokeStyle= val?css('--hot'):'#33415f'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y,18,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle= val?'#02121a':'#9fb4d8'; ctx.font='bold 16px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String(val),x,y); ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#9fb4d8'; ctx.font='12px monospace'; ctx.textAlign='left'; ctx.fillText(name,x+26,y+5);
+  }
+  function drawFA(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    const s=signals();
+    // wires (draw before boxes)
+    wire(dots.A.x+18,dots.A.y, inP('xor1',0).x,inP('xor1',0).y, fa.A);
+    wire(dots.A.x+18,dots.A.y, inP('and1',0).x,inP('and1',0).y, fa.A);
+    wire(dots.B.x+18,dots.B.y, inP('xor1',1).x,inP('xor1',1).y, fa.B);
+    wire(dots.B.x+18,dots.B.y, inP('and1',1).x,inP('and1',1).y, fa.B);
+    wire(outP('xor1').x,outP('xor1').y, inP('xor2',0).x,inP('xor2',0).y, s.x1);
+    wire(outP('xor1').x,outP('xor1').y, inP('and2',0).x,inP('and2',0).y, s.x1);
+    wire(dots.Cin.x+18,dots.Cin.y, inP('xor2',1).x,inP('xor2',1).y, fa.Cin);
+    wire(dots.Cin.x+18,dots.Cin.y, inP('and2',1).x,inP('and2',1).y, fa.Cin);
+    wire(outP('and1').x,outP('and1').y, inP('or1',0).x,inP('or1',0).y, s.a1);
+    wire(outP('and2').x,outP('and2').y, inP('or1',1).x,inP('or1',1).y, s.a2);
+    wire(outP('xor2').x,outP('xor2').y, 800,inP('xor2',0).y+12, s.s);
+    wire(outP('or1').x,outP('or1').y, 800,outP('or1').y, s.cout);
+    // boxes
+    box('xor1',s.x1); box('and1',s.a1); box('xor2',s.s); box('and2',s.a2); box('or1',s.cout);
+    // inputs / outputs
+    dot('A',fa.A); dot('B',fa.B); dot('Cin',fa.Cin);
+    outLabel(800,inP('xor2',0).y+12,'Sum',s.s);
+    outLabel(800,outP('or1').y,'Cout',s.cout);
+    // summary
+    ctx.fillStyle='#8aa0c8'; ctx.font='13px monospace'; ctx.textAlign='left';
+    const total=fa.A+fa.B+fa.Cin;
+    ctx.fillText(fa.A+' + '+fa.B+' + '+fa.Cin+'  =  '+total+'   →   Cout Sum = '+s.cout+''+s.s+' (binary)',20,H-16);
+  }
+  cv.addEventListener('click',e=>{
+    const r=cv.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
+    for(const k in dots){ if(Math.hypot(x-dots[k].x,y-dots[k].y)<22){ fa[k]^=1; drawFA(); return; } }
+  });
+  drawFA();
+})();
+</script>
+</body>
+</html>
