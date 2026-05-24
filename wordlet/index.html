@@ -13,6 +13,12 @@
   </header>
 
   <main id="wordlet">
+    <div class="wl-modes" role="tablist" aria-label="Game mode">
+      <button id="wl-mode-daily" class="wl-mode" type="button" role="tab">Daily</button>
+      <button id="wl-mode-practice" class="wl-mode" type="button" role="tab">Practice</button>
+    </div>
+    <p id="wl-mode-note" class="wl-mode-note"></p>
+
     <p class="wl-help">
       Each guess must be a word of the right length. Tiles turn
       <span class="wl-swatch correct">green</span> (right letter, right spot),
@@ -22,8 +28,8 @@
 
     <section class="wl-stats" aria-label="Your stats">
       <div class="wl-stat"><span class="wl-stat-num" id="wl-score">0</span><span class="wl-stat-label">Score</span></div>
-      <div class="wl-stat"><span class="wl-stat-num" id="wl-streak">0</span><span class="wl-stat-label">Streak</span></div>
-      <div class="wl-stat"><span class="wl-stat-num" id="wl-best">0</span><span class="wl-stat-label">Best</span></div>
+      <div class="wl-stat"><span class="wl-stat-num" id="wl-streak">0</span><span class="wl-stat-label" id="wl-streak-label">Streak</span></div>
+      <div class="wl-stat"><span class="wl-stat-num" id="wl-best">0</span><span class="wl-stat-label" id="wl-best-label">Best</span></div>
       <div class="wl-stat"><span class="wl-stat-num" id="wl-wins">0</span><span class="wl-stat-label">Wins</span></div>
     </section>
 

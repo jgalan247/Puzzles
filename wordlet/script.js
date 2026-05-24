@@ -32,45 +32,80 @@
     { id: "streak5",   icon: "🚀", name: "Unstoppable",  desc: "Reach a 5-win streak",       test: function (s) { return s.streak >= 5; } },
     { id: "streak10",  icon: "👑", name: "Legendary",    desc: "Reach a 10-win streak",      test: function (s) { return s.streak >= 10; } },
     { id: "scholar",   icon: "🎓", name: "Scholar",      desc: "Win 10 games in total",      test: function (s) { return s.wins >= 10; } },
+    { id: "daily7",    icon: "📅", name: "Regular",      desc: "Solve the daily 7 days in a row", test: function (s) { return s.dailyStreak >= 7; } },
     { id: "highscore", icon: "💎", name: "High Scorer",  desc: "Reach 500 points",           test: function (s) { return s.score >= 500; } }
   ];
 
   var MAX_GUESSES = 6;
   var KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ENTER ZXCVBNM DEL"];
-  var STORE_KEY = "wordlet.stats.v1";
-  var DEFAULTS = { played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [] };
+  var STORE_KEY = "wordlet.stats.v2";
 
   var board = document.getElementById("wl-board");
   var keyboard = document.getElementById("wl-keyboard");
   var clueEl = document.getElementById("wl-clue");
   var messageEl = document.getElementById("wl-message");
 
+  var mode = "daily";
   var answer = "";
   var rowIndex = 0;
   var current = "";
   var over = false;
-  var recorded = true;
+  var recorded = true;   // practice-mode guard against double-recording
   var keyState = {};
   var stats;
   var toastTimer;
 
+  // ---- date helpers ----
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function todayKey() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  function shiftDate(key, delta) {
+    var p = key.split("-").map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    d.setUTCDate(d.getUTCDate() + delta);
+    return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+  }
+  function dailyIndex(key) {
+    var p = key.split("-").map(Number);
+    var days = Math.floor(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000);
+    return ((days % TERMS.length) + TERMS.length) % TERMS.length;
+  }
+
   // ---- persistence (degrades to in-memory if localStorage is unavailable) ----
+  function freshStats() {
+    return {
+      played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [],
+      dailyStreak: 0, dailyBest: 0, dailyLast: null,
+      dailyToday: { date: null, guesses: [], finished: false, won: false },
+      mode: "daily"
+    };
+  }
+
   function loadStats() {
+    var s = freshStats();
     try {
       var raw = window.localStorage.getItem(STORE_KEY);
       if (raw) {
-        var saved = JSON.parse(raw);
-        return {
-          played: saved.played || 0,
-          wins: saved.wins || 0,
-          streak: saved.streak || 0,
-          best: saved.best || 0,
-          score: saved.score || 0,
-          badges: saved.badges || []
-        };
+        var o = JSON.parse(raw);
+        ["played", "wins", "streak", "best", "score", "dailyStreak", "dailyBest"].forEach(function (k) {
+          if (typeof o[k] === "number") s[k] = o[k];
+        });
+        if (Array.isArray(o.badges)) s.badges = o.badges;
+        if (typeof o.dailyLast === "string") s.dailyLast = o.dailyLast;
+        if (o.mode === "daily" || o.mode === "practice") s.mode = o.mode;
+        if (o.dailyToday && typeof o.dailyToday === "object") {
+          s.dailyToday = {
+            date: typeof o.dailyToday.date === "string" ? o.dailyToday.date : null,
+            guesses: Array.isArray(o.dailyToday.guesses) ? o.dailyToday.guesses : [],
+            finished: !!o.dailyToday.finished,
+            won: !!o.dailyToday.won
+          };
+        }
       }
     } catch (e) { /* ignore */ }
-    return { played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [] };
+    return s;
   }
 
   function saveStats() {
@@ -80,9 +115,18 @@
   // ---- rendering ----
   function renderStats() {
     document.getElementById("wl-score").textContent = stats.score;
-    document.getElementById("wl-streak").textContent = stats.streak;
-    document.getElementById("wl-best").textContent = stats.best;
     document.getElementById("wl-wins").textContent = stats.wins;
+    if (mode === "daily") {
+      document.getElementById("wl-streak").textContent = stats.dailyStreak;
+      document.getElementById("wl-best").textContent = stats.dailyBest;
+      document.getElementById("wl-streak-label").textContent = "Day streak";
+      document.getElementById("wl-best-label").textContent = "Best run";
+    } else {
+      document.getElementById("wl-streak").textContent = stats.streak;
+      document.getElementById("wl-best").textContent = stats.best;
+      document.getElementById("wl-streak-label").textContent = "Streak";
+      document.getElementById("wl-best-label").textContent = "Best";
+    }
   }
 
   function renderBadges() {
@@ -107,6 +151,16 @@
     });
   }
 
+  function updateModeUI() {
+    document.getElementById("wl-mode-daily").classList.toggle("active", mode === "daily");
+    document.getElementById("wl-mode-practice").classList.toggle("active", mode === "practice");
+    document.getElementById("wl-new").style.display = (mode === "practice") ? "" : "none";
+    var note = document.getElementById("wl-mode-note");
+    note.textContent = (mode === "daily")
+      ? "Daily puzzle for " + todayKey() + " — one word a day, the same for everyone."
+      : "Practice — unlimited random words.";
+  }
+
   function showToast(text) {
     var t = document.getElementById("wl-toast");
     t.textContent = text;
@@ -129,8 +183,6 @@
   }
 
   function recordResult(won, guesses) {
-    if (recorded) return { points: 0, newBadges: [] };
-    recorded = true;
     stats.played++;
     var points = 0;
     if (won) {
@@ -149,6 +201,30 @@
     return { points: points, newBadges: newBadges };
   }
 
+  function practiceFinish(won, guesses) {
+    if (recorded) return null;
+    recorded = true;
+    return recordResult(won, guesses);
+  }
+
+  function updateDailyStreak(won, dateKey) {
+    if (won) {
+      stats.dailyStreak = (stats.dailyLast === shiftDate(dateKey, -1)) ? stats.dailyStreak + 1 : 1;
+      stats.dailyLast = dateKey;
+      if (stats.dailyStreak > stats.dailyBest) stats.dailyBest = stats.dailyStreak;
+    } else {
+      stats.dailyStreak = 0;
+    }
+  }
+
+  function dailyFinish(won, guesses) {
+    if (stats.dailyToday.finished) return null;
+    stats.dailyToday.finished = true;
+    stats.dailyToday.won = won;
+    updateDailyStreak(won, stats.dailyToday.date);
+    return recordResult(won, guesses);
+  }
+
   function announceBadges(newBadges) {
     if (newBadges && newBadges.length) {
       showToast("Badge unlocked: " + newBadges.map(function (b) { return b.icon + " " + b.name; }).join(", "));
@@ -156,10 +232,6 @@
   }
 
   // ---- board / keyboard ----
-  function pickTerm() {
-    return TERMS[Math.floor(Math.random() * TERMS.length)];
-  }
-
   function buildBoard() {
     board.innerHTML = "";
     board.style.gridTemplateRows = "repeat(" + MAX_GUESSES + ", auto)";
@@ -205,6 +277,44 @@
     return key;
   }
 
+  function rank(state) {
+    return { absent: 0, present: 1, correct: 2 }[state];
+  }
+
+  function scoreGuess(guess) {
+    var result = new Array(answer.length).fill("absent");
+    var counts = {};
+    var i, ch;
+    for (i = 0; i < answer.length; i++) {
+      ch = answer[i];
+      counts[ch] = (counts[ch] || 0) + 1;
+    }
+    for (i = 0; i < answer.length; i++) {
+      if (guess[i] === answer[i]) { result[i] = "correct"; counts[guess[i]]--; }
+    }
+    for (i = 0; i < answer.length; i++) {
+      if (result[i] === "correct") continue;
+      ch = guess[i];
+      if (counts[ch] > 0) { result[i] = "present"; counts[ch]--; }
+    }
+    return result;
+  }
+
+  function paintRow(r, guess) {
+    var result = scoreGuess(guess);
+    for (var c = 0; c < answer.length; c++) {
+      var tile = document.getElementById("wl-t-" + r + "-" + c);
+      tile.textContent = guess[c];
+      tile.className = "wl-tile " + result[c];
+      var ch = guess[c];
+      if (!keyState[ch] || rank(result[c]) > rank(keyState[ch])) {
+        keyState[ch] = result[c];
+        var keyBtn = keyboard.querySelector('[data-key="' + ch + '"]');
+        if (keyBtn) keyBtn.className = "wl-key " + result[c];
+      }
+    }
+  }
+
   function refreshCurrentRow() {
     for (var c = 0; c < answer.length; c++) {
       var tile = document.getElementById("wl-t-" + rowIndex + "-" + c);
@@ -233,70 +343,41 @@
     }
   }
 
-  function scoreGuess(guess) {
-    var result = new Array(answer.length).fill("absent");
-    var counts = {};
-    var i, ch;
-    for (i = 0; i < answer.length; i++) {
-      ch = answer[i];
-      counts[ch] = (counts[ch] || 0) + 1;
-    }
-    for (i = 0; i < answer.length; i++) {
-      if (guess[i] === answer[i]) { result[i] = "correct"; counts[guess[i]]--; }
-    }
-    for (i = 0; i < answer.length; i++) {
-      if (result[i] === "correct") continue;
-      ch = guess[i];
-      if (counts[ch] > 0) { result[i] = "present"; counts[ch]--; }
-    }
-    return result;
-  }
-
-  function rank(state) {
-    return { absent: 0, present: 1, correct: 2 }[state];
-  }
-
   function submitGuess() {
     if (current.length !== answer.length) {
       setMessage("Need " + answer.length + " letters", "#b00020");
       return;
     }
-    var result = scoreGuess(current);
-    for (var c = 0; c < answer.length; c++) {
-      var tile = document.getElementById("wl-t-" + rowIndex + "-" + c);
-      tile.className = "wl-tile " + result[c];
-      var ch = current[c];
-      if (!keyState[ch] || rank(result[c]) > rank(keyState[ch])) {
-        keyState[ch] = result[c];
-        var keyBtn = keyboard.querySelector('[data-key="' + ch + '"]');
-        if (keyBtn) keyBtn.className = "wl-key " + result[c];
+    paintRow(rowIndex, current);
+    if (mode === "daily") stats.dailyToday.guesses.push(current);
+
+    var win = (current === answer);
+    if (win) {
+      over = true;
+      var res = (mode === "daily") ? dailyFinish(true, rowIndex + 1) : practiceFinish(true, rowIndex + 1);
+      var pts = res ? res.points : 0;
+      setMessage(mode === "daily"
+        ? "Solved today's Wordlet! +" + pts + " pts — back tomorrow."
+        : "Correct! It's " + answer + "  +" + pts + " pts", "#6aaa64");
+      announceBadges(res ? res.newBadges : []);
+    } else {
+      rowIndex++;
+      current = "";
+      if (rowIndex >= MAX_GUESSES) {
+        over = true;
+        var lost = (mode === "daily") ? dailyFinish(false, MAX_GUESSES) : practiceFinish(false, MAX_GUESSES);
+        setMessage("Out of tries — the answer was " + answer, "#b00020");
+        announceBadges(lost ? lost.newBadges : []);
+      } else {
+        setMessage("");
       }
     }
-
-    if (current === answer) {
-      over = true;
-      var res = recordResult(true, rowIndex + 1);
-      setMessage("Correct! It's " + answer + "  +" + res.points + " pts", "#6aaa64");
-      announceBadges(res.newBadges);
-      return;
-    }
-    rowIndex++;
-    current = "";
-    if (rowIndex >= MAX_GUESSES) {
-      over = true;
-      var lost = recordResult(false, MAX_GUESSES);
-      setMessage("Out of tries — the answer was " + answer, "#b00020");
-      announceBadges(lost.newBadges);
-    } else {
-      setMessage("");
-    }
+    if (mode === "daily") saveStats();
   }
 
-  function newGame() {
-    // abandoning a started-but-unfinished game counts as a loss
-    if (!recorded && rowIndex > 0) recordResult(false, MAX_GUESSES);
-
-    var t = pickTerm();
+  // ---- game setup ----
+  function startPractice() {
+    var t = TERMS[Math.floor(Math.random() * TERMS.length)];
     answer = t.term;
     clueEl.textContent = t.clue;
     rowIndex = 0;
@@ -309,23 +390,87 @@
     buildKeyboard();
   }
 
-  document.getElementById("wl-new").addEventListener("click", newGame);
+  function startDaily() {
+    var key = todayKey();
+    if (stats.dailyToday.date !== key) {
+      stats.dailyToday = { date: key, guesses: [], finished: false, won: false };
+      saveStats();
+    }
+    var t = TERMS[dailyIndex(key)];
+    answer = t.term;
+    clueEl.textContent = t.clue;
+    rowIndex = 0;
+    current = "";
+    over = false;
+    recorded = true;   // daily uses dailyToday.finished as its guard
+    keyState = {};
+    buildBoard();
+    buildKeyboard();
+
+    stats.dailyToday.guesses.forEach(function (g) {
+      if (g.length !== answer.length) return;
+      paintRow(rowIndex, g);
+      rowIndex++;
+    });
+
+    if (stats.dailyToday.finished) {
+      over = true;
+      setMessage(stats.dailyToday.won
+        ? "You solved today's Wordlet — come back tomorrow!"
+        : "Today's word was " + answer + " — come back tomorrow.",
+        stats.dailyToday.won ? "#6aaa64" : "#b00020");
+    } else {
+      setMessage(stats.dailyToday.guesses.length ? "Resumed today's puzzle." : "");
+    }
+  }
+
+  function startGame() {
+    if (mode === "daily") startDaily(); else startPractice();
+  }
+
+  function maybeAbandon() {
+    if (mode === "practice" && !recorded && rowIndex > 0) practiceFinish(false, MAX_GUESSES);
+  }
+
+  function switchMode(m) {
+    if (mode === "practice") maybeAbandon();
+    mode = m;
+    stats.mode = m;
+    saveStats();
+    updateModeUI();
+    renderStats();
+    startGame();
+  }
+
+  // ---- events ----
+  document.getElementById("wl-mode-daily").addEventListener("click", function () { switchMode("daily"); });
+  document.getElementById("wl-mode-practice").addEventListener("click", function () { switchMode("practice"); });
+
+  document.getElementById("wl-new").addEventListener("click", function () {
+    if (mode !== "practice") return;
+    maybeAbandon();
+    startPractice();
+  });
 
   document.getElementById("wl-reveal").addEventListener("click", function () {
     if (over) return;
     over = true;
-    var lost = recordResult(false, rowIndex + 1);
+    var lost = (mode === "daily") ? dailyFinish(false, rowIndex + 1) : practiceFinish(false, rowIndex + 1);
     setMessage("The answer was " + answer, "#b00020");
-    announceBadges(lost.newBadges);
+    announceBadges(lost ? lost.newBadges : []);
+    if (mode === "daily") saveStats();
   });
 
   document.getElementById("wl-reset").addEventListener("click", function () {
     if (!window.confirm("Reset your score, streaks and badges?")) return;
-    stats = { played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [] };
+    var keepMode = mode;
+    stats = freshStats();
+    stats.mode = keepMode;
     saveStats();
     renderStats();
     renderBadges();
     showToast("Progress reset");
+    startGame();
   });
 
   document.addEventListener("keydown", function (e) {
@@ -337,7 +482,9 @@
 
   // ---- init ----
   stats = loadStats();
+  mode = stats.mode;
+  updateModeUI();
   renderStats();
   renderBadges();
-  newGame();
+  startGame();
 })();

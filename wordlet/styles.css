@@ -74,6 +74,19 @@ body {
 }
 .wl-controls button:hover { background: #0f5c5c; }
 
+/* mode toggle */
+.wl-modes {
+  display: flex; justify-content: center; gap: 0; margin: 4px 0 6px;
+  border: 1px solid var(--wl-accent); border-radius: 999px; overflow: hidden; width: fit-content;
+  margin-left: auto; margin-right: auto;
+}
+.wl-mode {
+  border: 0; background: #fff; color: var(--wl-accent); font-weight: 700;
+  padding: 8px 22px; cursor: pointer; font-size: .95em;
+}
+.wl-mode.active { background: var(--wl-accent); color: #fff; }
+.wl-mode-note { text-align: center; font-size: .82em; color: #666; margin: 0 0 10px; }
+
 /* stats bar */
 .wl-stats {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
