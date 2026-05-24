@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pathfinding — BFS · DFS · Dijkstra · A*</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --start:#19ff9b; --target:#ff5d8f; --visit:#2f6df0; --open:#16f0ff; --cur:#ffb02e; --path:#ffe24d; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--start)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--open),var(--path));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;
+    box-shadow:0 0 40px rgba(22,240,255,.08)}
+  canvas{display:block;width:100%;height:auto;cursor:crosshair}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  button,select{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 12px;cursor:pointer}
+  button:hover,select:hover{border-color:var(--open);color:#fff}
+  label{font-size:12px;color:#8aa0c8;display:flex;gap:8px;align-items:center}
+  input[type=range]{accent-color:var(--open)}
+  .stats{margin-top:10px;font-size:13px} .stats b{color:#fff}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#8aa0c8}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .hint{color:#5f7099;font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>PATHFINDING</h1>
+  <p class="sub">Explore how search algorithms find a route. Drag on the grid to draw walls; drag the green/pink squares to move start &amp; goal.</p>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <select id="algo">
+      <option value="bfs">BFS (breadth-first)</option>
+      <option value="dfs">DFS (depth-first)</option>
+      <option value="dijkstra">Dijkstra</option>
+      <option value="astar">A* (Manhattan)</option>
+    </select>
+    <button id="play">▶ Run</button>
+    <button id="step">⏭ Step</button>
+    <button id="maze">🧱 Random maze</button>
+    <button id="clear">🧹 Clear walls</button>
+    <label>Speed <input id="speed" type="range" min="5" max="300" step="5" value="60" /></label>
+  </div>
+
+  <div class="stats">Visited: <b id="vc">0</b> &nbsp;·&nbsp; Path length: <b id="pl">–</b> &nbsp;·&nbsp; Status: <b id="status">draw walls, then Run</b></div>
+  <div class="legend">
+    <span><i style="background:var(--start)"></i>start</span>
+    <span><i style="background:var(--target)"></i>goal</span>
+    <span><i style="background:var(--open)"></i>frontier</span>
+    <span><i style="background:var(--visit)"></i>visited</span>
+    <span><i style="background:var(--cur)"></i>current</span>
+    <span><i style="background:var(--path)"></i>path</span>
+  </div>
+  <div class="hint">BFS, Dijkstra and A* find a shortest path; A* explores fewer cells by heading toward the goal. DFS is not guaranteed shortest.</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const COLS=40, ROWS=22, CELL=25, W=COLS*CELL, H=ROWS*CELL;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  const idx=(c,r)=>r*COLS+c;
+  const col=i=>i%COLS, row=i=>(i/COLS)|0;
+  let walls=new Set();
+  let start=idx(2,(ROWS/2)|0), target=idx(COLS-3,(ROWS/2)|0);
+
+  let gen=null, running=false, stepOnce=false, speed=60, acc=0;
+  let visited=new Set(), openDisp=new Set(), current=-1, pathSet=new Set(), done=false, status='';
+
+  function neighbors(i){
+    const c=col(i), r=row(i), out=[];
+    if(c>0) out.push(i-1); if(c<COLS-1) out.push(i+1);
+    if(r>0) out.push(i-COLS); if(r<ROWS-1) out.push(i+COLS);
+    return out;
+  }
+  const heur=i=>Math.abs(col(i)-col(target))+Math.abs(row(i)-row(target));
+
+  function* search(algo){
+    const came=new Map(), seen=new Set(), g=new Map([[start,0]]);
+    let open=[start]; const inOpen=new Set([start]);
+    while(open.length){
+      let k=0;
+      if(algo==='dfs') k=open.length-1;
+      else if(algo==='bfs') k=0;
+      else { let bv=Infinity; for(let t=0;t<open.length;t++){ const node=open[t];
+        const pr=(algo==='astar')?g.get(node)+heur(node):g.get(node); if(pr<bv){bv=pr;k=t;} } }
+      const node=open.splice(k,1)[0]; inOpen.delete(node);
+      if(seen.has(node)) continue;
+      seen.add(node);
+      yield {visit:node, open:open.slice()};
+      if(node===target){ const path=[]; let c=node; while(c!==undefined){ path.push(c); c=came.get(c); }
+        yield {path:path.reverse()}; return; }
+      for(const nb of neighbors(node)){
+        if(walls.has(nb)||seen.has(nb)) continue;
+        const ng=g.get(node)+1;
+        if(!g.has(nb)||ng<g.get(nb)){ g.set(nb,ng); came.set(nb,node); }
+        if(!inOpen.has(nb)){ open.push(nb); inOpen.add(nb); }
+      }
+    }
+    yield {fail:true};
+  }
+
+  function resetRun(){
+    gen=null; running=false; stepOnce=false; acc=0;
+    visited=new Set(); openDisp=new Set(); current=-1; pathSet=new Set(); done=false;
+    document.getElementById('play').textContent='▶ Run';
+    setStatus('ready'); document.getElementById('vc').textContent='0'; document.getElementById('pl').textContent='–';
+  }
+  function setStatus(s){ status=s; document.getElementById('status').textContent=s; }
+
+  function stepSearch(){
+    if(done) return false;
+    if(!gen){ gen=search(document.getElementById('algo').value); setStatus('searching…'); }
+    const r=gen.next();
+    if(r.done){ done=true; return false; }
+    const e=r.value;
+    if(e.visit!=null){ visited.add(e.visit); current=e.visit; openDisp=new Set(e.open);
+      document.getElementById('vc').textContent=visited.size; }
+    else if(e.path){ pathSet=new Set(e.path); current=-1; openDisp=new Set(); done=true; running=false;
+      document.getElementById('pl').textContent=e.path.length-1; setStatus('path found');
+      document.getElementById('play').textContent='▶ Run'; }
+    else if(e.fail){ done=true; running=false; setStatus('no path'); document.getElementById('play').textContent='▶ Run'; }
+    return true;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for(let i=0;i<COLS*ROWS;i++){
+      const x=col(i)*CELL, y=row(i)*CELL;
+      let fill='#0a0f1c';
+      if(walls.has(i)) fill='#222c44';
+      else if(pathSet.has(i)) fill=css('--path');
+      else if(i===current) fill=css('--cur');
+      else if(visited.has(i)) fill='rgba(47,109,240,.55)';
+      else if(openDisp.has(i)) fill='rgba(22,240,255,.32)';
+      ctx.fillStyle=fill; ctx.fillRect(x,y,CELL,CELL);
+      ctx.strokeStyle='rgba(40,55,90,.5)'; ctx.lineWidth=1; ctx.strokeRect(x+0.5,y+0.5,CELL,CELL);
+    }
+    drawMark(start, css('--start'));
+    drawMark(target, css('--target'));
+  }
+  function drawMark(i,c){
+    const x=col(i)*CELL, y=row(i)*CELL;
+    ctx.save(); ctx.shadowBlur=12; ctx.shadowColor=c; ctx.fillStyle=c;
+    ctx.fillRect(x+3,y+3,CELL-6,CELL-6); ctx.restore();
+  }
+
+  let last=performance.now();
+  function frame(now){
+    const dt=(now-last)/1000; last=now;
+    if(running){ acc+=dt*speed; let guard=0; while(acc>=1 && guard<2000){ acc-=1; if(!stepSearch()) break; guard++; } }
+    else if(stepOnce){ stepSearch(); stepOnce=false; }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- mouse editing ----
+  let dragging=null, paintErase=false;
+  function cellAt(e){
+    const r=cv.getBoundingClientRect();
+    const c=Math.floor((e.clientX-r.left)/r.width*COLS);
+    const rr=Math.floor((e.clientY-r.top)/r.height*ROWS);
+    if(c<0||c>=COLS||rr<0||rr>=ROWS) return -1;
+    return idx(c,rr);
+  }
+  cv.addEventListener('mousedown',e=>{
+    const i=cellAt(e); if(i<0) return;
+    if(i===start) dragging='start';
+    else if(i===target) dragging='target';
+    else { dragging='wall'; paintErase=walls.has(i); if(paintErase) walls.delete(i); else walls.add(i); resetRun(); }
+  });
+  cv.addEventListener('mousemove',e=>{
+    if(!dragging) return; const i=cellAt(e); if(i<0) return;
+    if(dragging==='wall'){ if(i===start||i===target) return;
+      if(paintErase) walls.delete(i); else walls.add(i); resetRun(); }
+    else if(dragging==='start'){ if(i!==target&&!walls.has(i)){ start=i; resetRun(); } }
+    else if(dragging==='target'){ if(i!==start&&!walls.has(i)){ target=i; resetRun(); } }
+  });
+  window.addEventListener('mouseup',()=>{ dragging=null; });
+
+  // ---- controls ----
+  document.getElementById('play').addEventListener('click',e=>{
+    if(done) resetRun();
+    running=!running; e.target.textContent=running?'⏸ Pause':'▶ Run';
+    if(running) setStatus('searching…');
+  });
+  document.getElementById('step').addEventListener('click',()=>{ running=false;
+    document.getElementById('play').textContent='▶ Run'; stepOnce=true; });
+  document.getElementById('algo').addEventListener('change',resetRun);
+  document.getElementById('clear').addEventListener('click',()=>{ walls.clear(); resetRun(); });
+  document.getElementById('maze').addEventListener('click',()=>{
+    walls.clear();
+    for(let i=0;i<COLS*ROWS;i++){ if(i!==start&&i!==target&&Math.random()<0.28) walls.add(i); }
+    resetRun();
+  });
+  document.getElementById('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
+
+  resetRun();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
