@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Binary Arithmetic Playground</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --one:#16f0ff; --zero:#2a3650; --cur:#ffb02e; --carry:#b07cff; --res:#19ff9b; --warn:#ff5d8f; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--one)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--one),var(--res));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;
+    box-shadow:0 0 40px rgba(22,240,255,.08)}
+  canvas{display:block;width:100%;height:auto}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  button,select,input[type=number]{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 10px}
+  input[type=number]{width:100px}
+  button,select{cursor:pointer} button:hover,select:hover{border-color:var(--one);color:#fff}
+  label{font-size:12px;color:#8aa0c8;display:flex;gap:6px;align-items:center}
+  input[type=range]{accent-color:var(--one)}
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .card{background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:10px 12px}
+  .card .k{font-size:11px;letter-spacing:.1em;color:#7d93bd;text-transform:uppercase}
+  .card .v{font-size:18px;margin-top:4px;color:#fff}
+  .flag.on{color:var(--warn)} .flag.off{color:#5f7099}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>BINARY ARITHMETIC</h1>
+  <p class="sub">Add, subtract (via two's complement), and combine numbers bit by bit. Watch carries ripple from the least-significant bit upward.</p>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <label>A <input id="a" type="number" value="23" /></label>
+    <select id="op">
+      <option value="add">A + B</option>
+      <option value="sub">A − B</option>
+      <option value="and">A AND B</option>
+      <option value="or">A OR B</option>
+      <option value="xor">A XOR B</option>
+      <option value="not">NOT A</option>
+      <option value="shl">A &lt;&lt; B</option>
+      <option value="shr">A &gt;&gt; B</option>
+    </select>
+    <label>B <input id="b" type="number" value="46" /></label>
+    <label>Bits
+      <select id="width"><option>4</option><option selected>8</option><option>16</option></select>
+    </label>
+    <button id="play">⏸ Pause</button>
+    <button id="step">⏭ Step</button>
+  </div>
+
+  <div class="readout">
+    <div class="card"><div class="k">A (unsigned / signed)</div><div class="v" id="ra">–</div></div>
+    <div class="card"><div class="k">B (unsigned / signed)</div><div class="v" id="rb">–</div></div>
+    <div class="card"><div class="k">Result (unsigned / signed)</div><div class="v" id="rr">–</div></div>
+    <div class="card"><div class="k">Flags</div><div class="v"><span id="fc" class="flag off">carry 0</span> &nbsp; <span id="fo" class="flag off">overflow 0</span></div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const W=1000,H=300;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  let width=8, op='add', A=23, B=46;
+  let aBits=[], bBits=[], rBits=[], carry=[], showB=true, bLabel='B', sym='+';
+  let carryOut=0, overflow=0, resVal=0;
+  let p=0, running=true, stepOnce=false, speed=4, acc=0;
+
+  const mask=()=> (1<<width)-1;
+  const bitsOf=(v)=>{ const o=[]; for(let i=0;i<width;i++) o.push((v>>i)&1); return o; };
+  const signed=(v)=> v>=(1<<(width-1)) ? v-(1<<width) : v;
+
+  function compute(){
+    A=(parseInt(document.getElementById('a').value,10)||0)&mask();
+    B=(parseInt(document.getElementById('b').value,10)||0)&mask();
+    aBits=bitsOf(A); carry=new Array(width+1).fill(0);
+    showB=true; sym='+'; bLabel='B'; carryOut=0; overflow=0;
+    if(op==='add'||op==='sub'){
+      if(op==='sub'){ bBits=bitsOf((~B)&mask()); carry[0]=1; bLabel='NOT B'; }
+      else bBits=bitsOf(B);
+      sym='+';
+      for(let j=0;j<width;j++){ const s=aBits[j]+bBits[j]+carry[j]; rBits[j]=s&1; carry[j+1]=s>>1; }
+      carryOut=carry[width]; overflow=carry[width]^carry[width-1];
+      resVal=(op==='add'?(A+B):(A-B))&mask();
+    } else if(op==='and'||op==='or'||op==='xor'){
+      bBits=bitsOf(B); sym= op==='and'?'&':op==='or'?'|':'^';
+      for(let j=0;j<width;j++) rBits[j]= op==='and'?(aBits[j]&bBits[j]):op==='or'?(aBits[j]|bBits[j]):(aBits[j]^bBits[j]);
+      resVal=rBits.reduce((acc,b,j)=>acc|(b<<j),0);
+    } else if(op==='not'){
+      showB=false; sym='~'; resVal=((~A)&mask());
+      for(let j=0;j<width;j++) rBits[j]=(resVal>>j)&1;
+    } else if(op==='shl'||op==='shr'){
+      showB=false; const amt=B%(width+1);
+      resVal= op==='shl'? (A<<amt)&mask() : (A>>amt)&mask();
+      sym= op==='shl'? '<<'+amt : '>>'+amt;
+      for(let j=0;j<width;j++) rBits[j]=(resVal>>j)&1;
+    }
+    p=0; running=true; document.getElementById('play').textContent='⏸ Pause';
+    updateReadout();
+  }
+  function updateReadout(){
+    document.getElementById('ra').textContent=A+' / '+signed(A);
+    document.getElementById('rb').textContent= showB? (B+' / '+signed(B)) : '—';
+    document.getElementById('rr').textContent=resVal+' / '+signed(resVal);
+    const fc=document.getElementById('fc'), fo=document.getElementById('fo');
+    const carryRel=(op==='add'||op==='sub');
+    fc.textContent='carry '+(carryRel?carryOut:0); fc.className='flag '+((carryRel&&carryOut)?'on':'off');
+    fo.textContent='overflow '+(carryRel?overflow:0); fo.className='flag '+((carryRel&&overflow)?'on':'off');
+  }
+
+  // layout
+  const GX=110, GW=W-150;
+  const cw=()=>GW/width;
+  const colX=k=> GX + k*cw() + cw()/2;       // k=0 leftmost (MSB)
+  const bitIndex=k=> width-1-k;               // MSB first
+  const yCarry=46, yA=104, yB=158, yLine=196, yR=216;
+
+  function bitBox(cx,cy,val,kind){
+    const w=Math.min(cw()-8,44), h=44;
+    let stroke='#33415f', fill='#0b1426', txt='#cfe6ff';
+    if(val===1){ fill='rgba(22,240,255,.14)'; stroke=css('--one'); txt='#bff8ff'; }
+    if(kind==='cur'){ stroke=css('--cur'); }
+    if(kind==='res'&&val===1){ fill='rgba(25,255,155,.18)'; stroke=css('--res'); txt='#bfffe0'; }
+    ctx.save(); if(kind==='cur'){ctx.shadowBlur=14;ctx.shadowColor=css('--cur');}
+    ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=kind==='cur'?2.2:1.4;
+    rrect(cx-w/2,cy-h/2,w,h,8); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle=txt; ctx.font='bold 18px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String(val),cx,cy); ctx.textBaseline='alphabetic';
+  }
+  function rrect(x,y,w,h,r){ ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    const carryRel=(op==='add'||op==='sub');
+    // labels
+    ctx.fillStyle='#8aa0c8'; ctx.font='13px monospace'; ctx.textAlign='right';
+    if(carryRel) ctx.fillText('carry', GX-14, yCarry+5);
+    ctx.fillText('A', GX-14, yA+5);
+    if(showB) ctx.fillText(bLabel, GX-14, yB+5);
+    ctx.fillStyle=css('--res'); ctx.fillText('=', GX-14, yR+5);
+    // op symbol on far left of B row
+    ctx.fillStyle='#cfe6ff'; ctx.font='bold 20px monospace'; ctx.textAlign='left';
+    ctx.fillText(sym, 14, (showB?yB:yA)+6);
+
+    for(let k=0;k<width;k++){
+      const j=bitIndex(k), cx=colX(k), revealed=(j<p), isCur=(Math.floor(p)===j && running);
+      if(carryRel && (revealed||isCur)){
+        // carry-in to column j = carry[j]
+        const cv0=carry[j];
+        ctx.fillStyle = cv0? css('--carry'):'#3a4663';
+        ctx.font='bold 13px monospace'; ctx.textAlign='center';
+        ctx.fillText(String(cv0), cx, yCarry+5);
+      }
+      bitBox(cx,yA,aBits[j],'a');
+      if(showB) bitBox(cx,yB,bBits[j],'b');
+      if(revealed){ bitBox(cx,yR,rBits[j],'res'); }
+      else if(isCur){ bitBox(cx,yR,rBits[j],'cur'); }
+      else { ctx.fillStyle='#26304a'; ctx.font='18px monospace'; ctx.textAlign='center'; ctx.fillText('·',cx,yR+6); }
+      ctx.fillStyle='#56688f'; ctx.font='9px monospace'; ctx.textAlign='center';
+      ctx.fillText(String(j), cx, yR+34);
+    }
+    // line above result
+    ctx.strokeStyle='#33415f'; ctx.lineWidth=1.5; ctx.beginPath();
+    ctx.moveTo(GX-30,yLine); ctx.lineTo(GX+GW,yLine); ctx.stroke();
+
+    if(op==='sub'){
+      ctx.fillStyle='#b07cff'; ctx.font='12px monospace'; ctx.textAlign='left';
+      ctx.fillText('A − B  =  A + NOT B + 1   (the +1 is the carry-in at bit 0)', GX, 22);
+    }
+    if(carryRel && p>=width){
+      ctx.fillStyle = overflow? css('--warn'):'#5f7099'; ctx.font='12px monospace'; ctx.textAlign='right';
+      ctx.fillText('carry-out = '+carryOut+(overflow?'   · signed overflow!':''), GX+GW, 22);
+    }
+  }
+
+  let last=performance.now();
+  function frame(now){
+    const dt=(now-last)/1000; last=now;
+    if(running){ acc+=dt*speed; while(acc>=1 && p<width){ acc-=1; p++; } if(p>=width){ running=false; document.getElementById('play').textContent='▶ Replay'; } }
+    else if(stepOnce){ if(p<width) p++; stepOnce=false; }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  document.getElementById('play').addEventListener('click',e=>{
+    if(p>=width){ p=0; running=true; e.target.textContent='⏸ Pause'; return; }
+    running=!running; e.target.textContent=running?'⏸ Pause':'▶ Play';
+  });
+  document.getElementById('step').addEventListener('click',()=>{ running=false;
+    document.getElementById('play').textContent='▶ Play'; stepOnce=true; });
+  ['a','b','op','width'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{
+    op=document.getElementById('op').value; width=parseInt(document.getElementById('width').value,10); compute();
+  }));
+
+  compute();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
