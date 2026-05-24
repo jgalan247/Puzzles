@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FDE Binary — Electricity → Bits → Colour → Sound</title>
+<style>
+  :root{
+    --bg:#05060c; --panel:#0c1020; --edge:#1d2540;
+    --cyan:#16f0ff; --green:#19ff9b; --dim:#5b6a8c; --txt:#cfe6ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  header h1{margin:0;font-size:clamp(22px,4vw,34px);letter-spacing:.18em;
+    background:linear-gradient(90deg,var(--cyan),var(--green));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:6px 0 16px;color:#8aa0c8;font-size:13px;letter-spacing:.04em}
+  .stage{position:relative;border:1px solid var(--edge);border-radius:12px;
+    overflow:hidden;background:#04050a;box-shadow:0 0 40px rgba(22,240,255,.07)}
+  canvas{display:block;width:100%;height:auto}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(3,5,12,.72);backdrop-filter:blur(2px)}
+  .overlay button{font:inherit;letter-spacing:.12em;color:#02121a;cursor:pointer;
+    padding:14px 26px;border:0;border-radius:999px;font-weight:700;
+    background:linear-gradient(90deg,var(--cyan),var(--green));
+    box-shadow:0 0 28px rgba(22,240,255,.5)}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  .controls button{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 14px;cursor:pointer}
+  .controls button:hover{border-color:var(--cyan);color:#fff}
+  .controls label{font-size:12px;color:#8aa0c8;display:flex;gap:8px;align-items:center}
+  input[type=range]{accent-color:var(--cyan)}
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:14px}
+  .card{background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:12px 14px}
+  .card .k{font-size:11px;letter-spacing:.12em;color:#7d93bd;text-transform:uppercase}
+  .card .v{font-size:22px;margin-top:4px;color:#fff;word-break:break-all}
+  #bin{letter-spacing:.18em;color:var(--cyan)}
+  .swatch-card{display:flex;align-items:center;gap:12px}
+  #swatch{width:46px;height:46px;border-radius:10px;border:1px solid var(--edge);
+    background:#222;transition:background .25s,box-shadow .25s;flex:0 0 auto}
+  footer{margin-top:26px;color:#5f7099;font-size:12px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>F D E &nbsp;B I N A R Y</h1>
+    <p>Watch electricity flow from the source, through logic gates, building a byte — which becomes a colour and a note.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="overlay">
+      <button id="start">▶ POWER ON</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="pause">⏸ Pause</button>
+    <button id="mute">🔊 Sound: On</button>
+    <button id="mode">Mode: Random</button>
+    <label>Speed
+      <input id="speed" type="range" min="0.4" max="2.2" step="0.1" value="1" />
+    </label>
+    <span style="font-size:12px;color:#7d93bd">Tip: switch to Manual, then click an input dot to flip it.</span>
+  </div>
+
+  <div class="readout">
+    <div class="card"><div class="k">Inputs I0–I3</div><div class="v" id="inbits">– – – –</div></div>
+    <div class="card"><div class="k">Binary</div><div class="v" id="bin">00000000</div></div>
+    <div class="card"><div class="k">Decimal</div><div class="v" id="dec">0</div></div>
+    <div class="card"><div class="k">Hex</div><div class="v" id="hex">0x00</div></div>
+    <div class="card"><div class="k">Note</div><div class="v" id="note">–</div></div>
+    <div class="card swatch-card"><div id="swatch"></div><div><div class="k">Colour</div><div class="v" id="hsl" style="font-size:14px">hsl</div></div></div>
+  </div>
+
+  <footer>
+    8 logic gates (AND / OR / XOR / NAND) each emit one bit. The bits stack into a byte (0–255),
+    mapped to a hue and a pentatonic note. Combinational logic — no clock state, just signal propagation.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv');
+  const ctx=cv.getContext('2d');
+  const W=1000,H=600;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+
+  // ---- geometry ----
+  const source={x:70,y:300};
+  const inputs=[
+    {v:0,x:205,y:150,label:'I0'},
+    {v:0,x:205,y:250,label:'I1'},
+    {v:0,x:205,y:350,label:'I2'},
+    {v:0,x:205,y:450,label:'I3'}
+  ];
+  const GX=470, GW=78, GH=46, LEDX=872;
+  const gates=[
+    {bit:7,type:'XOR', a:1,b:2},
+    {bit:6,type:'OR',  a:0,b:3},
+    {bit:5,type:'AND', a:1,b:3},
+    {bit:4,type:'XOR', a:0,b:2},
+    {bit:3,type:'NAND',a:3,b:0},
+    {bit:2,type:'XOR', a:2,b:3},
+    {bit:1,type:'OR',  a:1,b:2},
+    {bit:0,type:'AND', a:0,b:1}
+  ];
+  gates.forEach((g,p)=>{ g.y=64+p*68; g.out=0; });
+
+  // ---- logic ----
+  function ev(t,a,b){
+    switch(t){
+      case 'AND':  return a&b;
+      case 'OR':   return a|b;
+      case 'XOR':  return a^b;
+      case 'NAND': return (a&b)?0:1;
+      case 'NOR':  return (a|b)?0:1;
+      default:     return a;
+    }
+  }
+  let byteVal=0;
+  function compute(){
+    byteVal=0;
+    gates.forEach(g=>{ g.out=ev(g.type,inputs[g.a].v,inputs[g.b].v); byteVal|=g.out<<g.bit; });
+  }
+
+  // ---- sound ----
+  const NOTES=[['C3',130.81],['D3',146.83],['E3',164.81],['G3',196.0],['A3',220.0],
+               ['C4',261.63],['D4',293.66],['E4',329.63],['G4',392.0],['A4',440.0],
+               ['C5',523.25],['D5',587.33],['E5',659.25],['G5',783.99],['A5',880.0]];
+  let actx=null, muted=false;
+  function ensureAudio(){
+    if(!actx){ const AC=window.AudioContext||window.webkitAudioContext; if(AC) actx=new AC(); }
+    if(actx&&actx.state==='suspended') actx.resume();
+  }
+  function noteIndex(){ return Math.min(NOTES.length-1, Math.floor(byteVal/256*NOTES.length)); }
+  function playNote(f){
+    if(muted||!actx) return;
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type='triangle'; o.frequency.value=f;
+    const n=actx.currentTime;
+    g.gain.setValueAtTime(0,n);
+    g.gain.linearRampToValueAtTime(0.22,n+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,n+0.5);
+    o.connect(g).connect(actx.destination);
+    o.start(n); o.stop(n+0.55);
+  }
+
+  // ---- readout ----
+  function hueColor(v){ return 'hsl('+Math.round(v/256*360)+',85%,55%)'; }
+  function updateReadout(){
+    document.getElementById('inbits').textContent=inputs.map(i=>i.v).join(' ');
+    document.getElementById('bin').textContent=byteVal.toString(2).padStart(8,'0');
+    document.getElementById('dec').textContent=byteVal;
+    document.getElementById('hex').textContent='0x'+byteVal.toString(16).toUpperCase().padStart(2,'0');
+    document.getElementById('note').textContent=NOTES[noteIndex()][0];
+    const c=hueColor(byteVal);
+    const sw=document.getElementById('swatch');
+    sw.style.background=c; sw.style.boxShadow='0 0 26px '+c;
+    document.getElementById('hsl').textContent=c;
+  }
+
+  // ---- state ----
+  let running=false, cycT=0, last=performance.now(), speed=1;
+  let revealed=false, latched=false, randomMode=true;
+  const baseCycle=3.4;
+
+  function newCycle(){
+    if(randomMode) inputs.forEach(i=>i.v=Math.random()<0.5?1:0);
+    compute(); revealed=false; latched=false;
+  }
+  function onReveal(){ latched=true; updateReadout(); playNote(NOTES[noteIndex()][1]); }
+
+  // ---- helpers ----
+  const clamp=(x,a,b)=>x<a?a:x>b?b:x;
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  function polyPoint(pts,t){
+    let total=0; const seg=[];
+    for(let i=0;i<pts.length-1;i++){ const d=Math.hypot(pts[i+1].x-pts[i].x,pts[i+1].y-pts[i].y); seg.push(d); total+=d; }
+    let dist=t*total;
+    for(let i=0;i<seg.length;i++){
+      if(dist<=seg[i]||i===seg.length-1){ const tt=seg[i]?dist/seg[i]:0; return {x:lerp(pts[i].x,pts[i+1].x,tt),y:lerp(pts[i].y,pts[i+1].y,tt)}; }
+      dist-=seg[i];
+    }
+    return pts[pts.length-1];
+  }
+  function strokePoly(pts,color,w){
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+    ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineJoin='round'; ctx.stroke();
+  }
+  function glowDot(p,color,r){
+    ctx.save(); ctx.shadowBlur=18; ctx.shadowColor=color; ctx.fillStyle=color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+  function rrect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+
+  const pinA=g=>({x:GX,y:g.y-12});
+  const pinB=g=>({x:GX,y:g.y+12});
+  function inPath(g,which){
+    const inp=inputs[which==='a'?g.a:g.b];
+    const pin=which==='a'?pinA(g):pinB(g);
+    return [source,{x:inp.x,y:inp.y},{x:GX-34,y:pin.y},pin];
+  }
+  const outPath=g=>[{x:GX+GW,y:g.y},{x:LEDX-22,y:g.y}];
+
+  // ---- drawing ----
+  function drawGrid(){
+    ctx.strokeStyle='rgba(40,55,90,0.18)'; ctx.lineWidth=1;
+    for(let x=0;x<=W;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<=H;y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  }
+  function drawSource(frac){
+    const pulse=(frac*2)%1;
+    ctx.save();
+    ctx.strokeStyle='rgba(22,240,255,'+(0.5*(1-pulse))+')';
+    ctx.lineWidth=2; ctx.beginPath();
+    ctx.arc(source.x,source.y,14+pulse*26,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='#0b1426'; ctx.strokeStyle=cssVar('--cyan'); ctx.lineWidth=2;
+    rrect(source.x-22,source.y-26,44,52,8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=cssVar('--cyan'); ctx.font='bold 18px monospace'; ctx.textAlign='center';
+    ctx.fillText('+',source.x,source.y-6); ctx.fillText('–',source.x,source.y+18);
+    ctx.fillStyle='#7d93bd'; ctx.font='11px monospace';
+    ctx.fillText('SOURCE',source.x,source.y+44);
+  }
+  function drawInput(inp){
+    const on=inp.v===1;
+    glowDot({x:inp.x,y:inp.y}, on?cssVar('--cyan'):'#33405e', on?9:7);
+    ctx.fillStyle=on?'#02121a':'#9fb4d8'; ctx.font='bold 12px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String(inp.v),inp.x,inp.y);
+    ctx.fillStyle='#7d93bd'; ctx.font='11px monospace';
+    ctx.fillText(inp.label,inp.x-30,inp.y);
+    ctx.textBaseline='alphabetic';
+  }
+  function drawGate(g,lit){
+    const on=lit&&g.out===1;
+    const x=GX, y=g.y-GH/2;
+    ctx.save();
+    if(on){ ctx.shadowBlur=22; ctx.shadowColor=cssVar('--green'); }
+    ctx.fillStyle=on?'rgba(25,255,155,0.16)':'#0b1426';
+    ctx.strokeStyle=on?cssVar('--green'):'#33415f'; ctx.lineWidth=2;
+    rrect(x,y,GW,GH,9); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle=on?'#bdffe1':'#9fb4d8'; ctx.font='bold 14px monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(g.type,x+GW/2,g.y);
+    ctx.textBaseline='alphabetic';
+    // pins
+    [pinA(g),pinB(g)].forEach(p=>{ ctx.fillStyle='#4a5d85'; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); });
+    ctx.fillStyle=on?cssVar('--green'):'#4a5d85';
+    ctx.beginPath(); ctx.arc(x+GW,g.y,3.5,0,Math.PI*2); ctx.fill();
+  }
+  function drawLED(g){
+    const on=latched&&g.out===1;
+    const c=cssVar('--cyan');
+    ctx.save();
+    if(on){ ctx.shadowBlur=20; ctx.shadowColor=c; }
+    ctx.fillStyle=on?c:'#101a30'; ctx.strokeStyle=on?c:'#2a3754'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(LEDX,g.y,13,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='#6b7ea6'; ctx.font='10px monospace'; ctx.textAlign='center';
+    ctx.fillText('bit'+g.bit,LEDX,g.y-20);
+    ctx.fillStyle=on?'#02121a':'#5f7099'; ctx.font='bold 12px monospace'; ctx.textBaseline='middle';
+    ctx.fillText(latched?String(g.out):'·',LEDX,g.y);
+    ctx.textBaseline='alphabetic';
+  }
+  function drawLabels(){
+    ctx.fillStyle='#56688f'; ctx.font='11px monospace'; ctx.textAlign='center';
+    ctx.fillText('INPUTS',inputs[0].x,28);
+    ctx.fillText('GATES',GX+GW/2,28);
+    ctx.fillText('BYTE',LEDX,28);
+  }
+  function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  function draw(frac){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle=cssVar('--bg'); ctx.fillRect(0,0,W,H);
+    drawGrid();
+
+    const inP=clamp(frac/0.4,0,1);
+    const inActive=frac<0.46;
+    const outP=clamp((frac-0.4)/0.3,0,1);
+    const outActive=frac>=0.4&&frac<0.74;
+    const gateLit=frac>=0.4;
+
+    gates.forEach(g=>{
+      ['a','b'].forEach(w=>{
+        const inp=inputs[w==='a'?g.a:g.b];
+        const path=inPath(g,w);
+        const en=inp.v===1;
+        strokePoly(path, en?'rgba(22,240,255,0.5)':'rgba(60,75,110,0.32)', en?2.2:1.3);
+        if(inActive){ const p=polyPoint(path,inP); glowDot(p, en?'#bff8ff':'#56688f', en?4:2.4); }
+      });
+    });
+    gates.forEach(g=>drawGate(g,gateLit));
+    gates.forEach(g=>{
+      const path=outPath(g), en=g.out===1;
+      strokePoly(path, en?'rgba(25,255,155,0.55)':'rgba(60,75,110,0.28)', en?2.4:1.3);
+      if(outActive&&en){ const p=polyPoint(path,outP); glowDot(p,'#b6ffd9',4); }
+    });
+    gates.forEach(drawLED);
+    drawSource(frac);
+    inputs.forEach(drawInput);
+    drawLabels();
+  }
+
+  function frame(now){
+    const dt=Math.min(0.05,(now-last)/1000); last=now;
+    if(running){
+      cycT+=dt*speed;
+      if(cycT>=baseCycle){ cycT-=baseCycle; newCycle(); }
+      const frac=cycT/baseCycle;
+      if(!revealed&&frac>=0.7){ revealed=true; onReveal(); }
+    }
+    draw(cycT/baseCycle);
+    requestAnimationFrame(frame);
+  }
+
+  // ---- controls ----
+  document.getElementById('start').addEventListener('click',()=>{
+    ensureAudio(); running=true; document.getElementById('overlay').style.display='none';
+  });
+  document.getElementById('pause').addEventListener('click',e=>{
+    running=!running; e.target.textContent=running?'⏸ Pause':'▶ Resume';
+  });
+  document.getElementById('mute').addEventListener('click',e=>{
+    muted=!muted; e.target.textContent=muted?'🔇 Sound: Off':'🔊 Sound: On';
+  });
+  document.getElementById('mode').addEventListener('click',e=>{
+    randomMode=!randomMode; e.target.textContent=randomMode?'Mode: Random':'Mode: Manual';
+  });
+  document.getElementById('speed').addEventListener('input',e=>{ speed=parseFloat(e.target.value); });
+  cv.addEventListener('click',e=>{
+    const r=cv.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
+    for(const inp of inputs){
+      if(Math.hypot(x-inp.x,y-inp.y)<22){
+        if(randomMode){ randomMode=false; document.getElementById('mode').textContent='Mode: Manual'; }
+        inp.v^=1; compute(); latched=true; updateReadout();
+        return;
+      }
+    }
+  });
+
+  // ---- init ----
+  newCycle(); latched=true; updateReadout();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
