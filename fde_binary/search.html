@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Searching — Linear vs Binary</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --base:#2f6df0; --cur:#ffb02e; --found:#19ff9b; --gone:#26304a; --range:#163a6b; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--found)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--cur),var(--found));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;
+    box-shadow:0 0 40px rgba(47,109,240,.08)}
+  canvas{display:block;width:100%;height:auto}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  button,input[type=number]{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 12px;cursor:pointer}
+  input[type=number]{width:90px;cursor:text}
+  button:hover{border-color:var(--cur);color:#fff}
+  label{font-size:12px;color:#8aa0c8;display:flex;gap:8px;align-items:center}
+  input[type=range]{accent-color:var(--cur)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>SEARCHING: LINEAR vs BINARY</h1>
+  <p class="sub">Both search the same sorted array for the same target. Linear checks every cell; binary halves the range each step.</p>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <button id="play">▶ Play</button>
+    <button id="step">⏭ Step</button>
+    <button id="new">🔀 New array</button>
+    <label>Target <input id="target" type="number" value="0" /></label>
+    <button id="present">Pick present</button>
+    <button id="absent">Pick absent</button>
+    <label>Size <input id="size" type="range" min="6" max="32" step="1" value="16" /></label>
+    <label>Speed <input id="speed" type="range" min="1" max="12" step="1" value="3" /></label>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const W=1000,H=320;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  let arr=[], n=16, target=0, speed=3, acc=0;
+  let running=false, stepOnce=false;
+  let lin, bin; // search state objects
+
+  function newArray(keepTarget){
+    arr=[]; let v=1+Math.floor(Math.random()*6);
+    for(let i=0;i<n;i++){ arr.push(v); v+=1+Math.floor(Math.random()*6); }
+    if(!keepTarget) target=arr[Math.floor(Math.random()*n)];
+    document.getElementById('target').value=target;
+    reset();
+  }
+  function reset(){
+    running=false; stepOnce=false; acc=0;
+    document.getElementById('play').textContent='▶ Play';
+    lin={ gen:linear(), i:-1, found:-1, done:false, cmp:0 };
+    bin={ gen:binary(), lo:0, hi:n-1, mid:-1, found:-1, done:false, cmp:0 };
+  }
+
+  function* linear(){
+    for(let i=0;i<arr.length;i++){
+      yield {i};
+      if(arr[i]===target){ yield {found:i}; return; }
+    }
+    yield {notfound:true};
+  }
+  function* binary(){
+    let lo=0,hi=arr.length-1;
+    while(lo<=hi){
+      const mid=(lo+hi)>>1;
+      yield {lo,hi,mid};
+      if(arr[mid]===target){ yield {found:mid,lo,hi}; return; }
+      else if(arr[mid]<target) lo=mid+1; else hi=mid-1;
+    }
+    yield {notfound:true,lo,hi};
+  }
+
+  function advLinear(){
+    if(lin.done) return;
+    const r=lin.gen.next();
+    if(r.done){ lin.done=true; return; }
+    const e=r.value;
+    if(e.i!=null){ lin.i=e.i; lin.cmp++; }
+    else if(e.found!=null){ lin.found=e.found; lin.done=true; }
+    else if(e.notfound){ lin.i=-1; lin.done=true; }
+  }
+  function advBinary(){
+    if(bin.done) return;
+    const r=bin.gen.next();
+    if(r.done){ bin.done=true; return; }
+    const e=r.value;
+    if(e.mid!=null){ bin.lo=e.lo; bin.hi=e.hi; bin.mid=e.mid; bin.cmp++; if(e.found!=null) {bin.found=e.found; bin.done=true;} }
+    else if(e.found!=null){ bin.found=e.found; bin.lo=e.lo; bin.hi=e.hi; bin.done=true; }
+    else if(e.notfound){ bin.mid=-1; bin.done=true; }
+  }
+  function stepBoth(){
+    if(lin.done && bin.done){ running=false; document.getElementById('play').textContent='▶ Play'; return false; }
+    advLinear(); advBinary();
+    return true;
+  }
+
+  function drawArray(y,title,info,classifier){
+    const cw=W/n, bh=70;
+    ctx.fillStyle='#8aa0c8'; ctx.font='12px monospace'; ctx.textAlign='left';
+    ctx.fillText(title, 6, y-10);
+    ctx.textAlign='right'; ctx.fillStyle='#cfe6ff';
+    ctx.fillText(info, W-6, y-10); ctx.textAlign='left';
+    for(let i=0;i<n;i++){
+      const x=i*cw, st=classifier(i);
+      let fill='#0b1426', stroke='#33415f', txt='#cfe6ff';
+      if(st==='range'){ fill=css('--range'); stroke='#2f5fa6'; }
+      if(st==='gone'){ fill='#080c16'; stroke='#1a2336'; txt='#46546f'; }
+      if(st==='cur'){ fill='rgba(255,176,46,.18)'; stroke=css('--cur'); txt='#ffe6b0'; }
+      if(st==='found'){ fill='rgba(25,255,155,.2)'; stroke=css('--found'); txt='#bfffe0'; }
+      ctx.save();
+      if(st==='cur'||st==='found'){ ctx.shadowBlur=14; ctx.shadowColor=stroke; }
+      ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=(st==='cur'||st==='found')?2:1.2;
+      rrect(x+2,y,cw-4,bh,6); ctx.fill(); ctx.stroke(); ctx.restore();
+      ctx.fillStyle=txt; ctx.font='bold '+Math.min(16,cw*0.42)+'px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(arr[i]), x+cw/2, y+bh/2);
+      ctx.fillStyle='#5f7099'; ctx.font='9px monospace'; ctx.textBaseline='top';
+      ctx.fillText(String(i), x+cw/2, y+bh+4);
+    }
+    ctx.textBaseline='alphabetic';
+  }
+  function rrect(x,y,w,h,r){ ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function linClass(i){
+    if(lin.found===i) return 'found';
+    if(lin.i===i && !lin.done) return 'cur';
+    if(lin.i===i && lin.done) return 'cur';
+    if(i<lin.i) return 'gone';
+    return 'base';
+  }
+  function binClass(i){
+    if(bin.found===i) return 'found';
+    if(i<bin.lo || i>bin.hi) return 'gone';
+    if(i===bin.mid) return 'cur';
+    return 'range';
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    const res=(s,name)=> s.found>=0?('found at '+s.found):(s.done?'not found':'') ;
+    drawArray(48, 'LINEAR  O(n)   target = '+target, 'comparisons: '+lin.cmp+'   '+res(lin), linClass);
+    drawArray(190,'BINARY  O(log n)', 'comparisons: '+bin.cmp+'   '+res(bin), binClass);
+  }
+
+  let last=performance.now();
+  function frame(now){
+    const dt=(now-last)/1000; last=now;
+    if(running){ acc+=dt*speed; while(acc>=1){ acc-=1; if(!stepBoth()) break; } }
+    else if(stepOnce){ stepBoth(); stepOnce=false; }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  document.getElementById('play').addEventListener('click',e=>{
+    if(lin.done&&bin.done) return;
+    running=!running; e.target.textContent=running?'⏸ Pause':'▶ Play';
+  });
+  document.getElementById('step').addEventListener('click',()=>{ running=false;
+    document.getElementById('play').textContent='▶ Play'; stepOnce=true; });
+  document.getElementById('new').addEventListener('click',()=>newArray(false));
+  document.getElementById('present').addEventListener('click',()=>{ target=arr[Math.floor(Math.random()*n)];
+    document.getElementById('target').value=target; reset(); });
+  document.getElementById('absent').addEventListener('click',()=>{ // a value guaranteed not in array
+    let t; do{ t=1+Math.floor(Math.random()*(arr[n-1]+4)); }while(arr.indexOf(t)>=0);
+    target=t; document.getElementById('target').value=target; reset(); });
+  document.getElementById('target').addEventListener('change',e=>{ target=parseInt(e.target.value,10)||0; reset(); });
+  document.getElementById('size').addEventListener('input',e=>{ n=parseInt(e.target.value,10); newArray(false); });
+  document.getElementById('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
+
+  newArray(false);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
