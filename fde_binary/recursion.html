@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Recursion Visualiser — call trees</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --call:#ffb02e; --ret:#19ff9b; --cache:#b07cff; --base:#16f0ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--ret)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--call),var(--cache));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;
+    box-shadow:0 0 40px rgba(176,124,255,.08)}
+  canvas{display:block;width:100%;height:auto}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  button,select{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 12px;cursor:pointer}
+  button:hover,select:hover{border-color:var(--call);color:#fff}
+  label{font-size:12px;color:#8aa0c8;display:flex;gap:8px;align-items:center}
+  input[type=range]{accent-color:var(--call)}
+  .stats{margin-top:10px;font-size:13px} .stats b{color:#fff}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#8aa0c8}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>RECURSION CALL TREE</h1>
+  <p class="sub">Each call spawns sub-calls (orange) that return values (green) back up the tree. Turn on memoisation to see Fibonacci stop recomputing the same work.</p>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <select id="mode">
+      <option value="fib">Fibonacci</option>
+      <option value="fact">Factorial</option>
+    </select>
+    <label>n <input id="n" type="range" min="1" max="10" value="6" /> <b id="nv" style="color:var(--call)">6</b></label>
+    <label id="memowrap"><input id="memo" type="checkbox" /> memoise</label>
+    <button id="play">▶ Play</button>
+    <button id="step">⏭ Step</button>
+    <button id="restart">↺ Restart</button>
+    <label>Speed <input id="speed" type="range" min="1" max="40" value="6" /></label>
+  </div>
+
+  <div class="stats">Calls: <b id="calls">0</b> &nbsp;·&nbsp; Result: <b id="result">–</b></div>
+  <div class="legend">
+    <span><i style="background:var(--call)"></i>calling</span>
+    <span><i style="background:var(--ret)"></i>returned</span>
+    <span><i style="background:var(--cache)"></i>cached</span>
+    <span><i style="background:var(--base)"></i>base case</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const W=1000,H=520;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  let mode='fib', n=6, memoOn=false;
+  let root=null, events=[], ei=0, callCount=0, result=null;
+  let revealed=new Set(), stack=[], current=null;
+  let running=false, stepOnce=false, speed=6, acc=0, maxDepth=0, leaves=0;
+
+  function build(){
+    let id=0; events=[]; const memo=memoOn?new Map():null;
+    function fib(k,depth){
+      const node={id:id++,label:'fib('+k+')',value:null,children:[],depth,cached:false,base:false};
+      events.push({t:'call',node});
+      if(memo&&memo.has(k)){ node.value=memo.get(k); node.cached=true; events.push({t:'ret',node}); return node; }
+      if(k<2){ node.value=k; node.base=true; if(memo)memo.set(k,k); events.push({t:'ret',node}); return node; }
+      node.children.push(fib(k-1,depth+1));
+      node.children.push(fib(k-2,depth+1));
+      node.value=node.children[0].value+node.children[1].value;
+      if(memo)memo.set(k,node.value); events.push({t:'ret',node}); return node;
+    }
+    function fact(k,depth){
+      const node={id:id++,label:k+'!',value:null,children:[],depth,cached:false,base:false};
+      events.push({t:'call',node});
+      if(k<=1){ node.value=1; node.base=true; events.push({t:'ret',node}); return node; }
+      node.children.push(fact(k-1,depth+1));
+      node.value=k*node.children[0].value;
+      events.push({t:'ret',node}); return node;
+    }
+    root = mode==='fib'? fib(n,0) : fact(n,0);
+    // layout
+    let lx=0; maxDepth=0;
+    (function lay(node){
+      maxDepth=Math.max(maxDepth,node.depth);
+      if(node.children.length===0){ node.lx=lx++; }
+      else { node.children.forEach(lay); node.lx=(node.children[0].lx+node.children[node.children.length-1].lx)/2; }
+    })(root);
+    leaves=lx;
+    ei=0; callCount=0; result=null; revealed=new Set(); stack=[]; current=null;
+    running=false; acc=0;
+    document.getElementById('play').textContent='▶ Play';
+    document.getElementById('calls').textContent='0';
+    document.getElementById('result').textContent='–';
+  }
+
+  function nodeXY(node){
+    const x = leaves<=1? W/2 : 36 + node.lx*((W-72)/(leaves-1));
+    const y = 40 + node.depth*((H-80)/(maxDepth+1));
+    return {x,y};
+  }
+
+  function stepEvent(){
+    if(ei>=events.length){ running=false; document.getElementById('play').textContent='▶ Replay'; return false; }
+    const e=events[ei++];
+    if(e.t==='call'){ revealed.add(e.node.id); stack.push(e.node); current=e.node; callCount++;
+      document.getElementById('calls').textContent=callCount; }
+    else { e.node.returned=true; stack.pop(); current=stack.length?stack[stack.length-1]:null;
+      if(e.node===root){ result=root.value; document.getElementById('result').textContent=result; } }
+    return true;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    // edges
+    drawEdges(root);
+    // nodes
+    drawNodes(root);
+    // stack panel
+    drawStack();
+  }
+  function drawEdges(node){
+    if(!node) return;
+    if(revealed.has(node.id)){
+      const p=nodeXY(node);
+      for(const c of node.children){ if(revealed.has(c.id)){ const q=nodeXY(c);
+        ctx.strokeStyle='rgba(90,110,150,.5)'; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y+r()); ctx.lineTo(q.x,q.y-r()); ctx.stroke(); } }
+    }
+    node.children.forEach(drawEdges);
+  }
+  function r(){ return Math.max(9, Math.min(20, 360/Math.max(8,leaves))); }
+  function drawNodes(node){
+    if(!node) return;
+    if(revealed.has(node.id)){
+      const p=nodeXY(node), rad=r();
+      let col=css('--call'), txt='#02121a';
+      if(node.cached) col=css('--cache');
+      else if(node.returned) col= node.base?css('--base'):css('--ret');
+      if(node===current){ ctx.save(); ctx.shadowBlur=16; ctx.shadowColor=col; }
+      ctx.fillStyle=col; ctx.strokeStyle=col; ctx.beginPath(); ctx.arc(p.x,p.y,rad,0,Math.PI*2); ctx.fill();
+      if(node===current) ctx.restore();
+      ctx.fillStyle=txt; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='bold '+Math.max(8,rad*0.62)+'px monospace';
+      ctx.fillText(node.returned||node.cached?String(node.value):'…',p.x,p.y);
+      if(rad>=13){ ctx.fillStyle='#8aa0c8'; ctx.font=Math.max(8,rad*0.5)+'px monospace';
+        ctx.textBaseline='bottom'; ctx.fillText(node.label,p.x,p.y-rad-2); }
+      ctx.textBaseline='alphabetic';
+    }
+    node.children.forEach(drawNodes);
+  }
+  function drawStack(){
+    ctx.fillStyle='rgba(12,16,32,.85)'; ctx.fillRect(W-150,8,142,Math.min(H-16,18+stack.length*16+18));
+    ctx.strokeStyle='#1d2540'; ctx.strokeRect(W-150,8,142,Math.min(H-16,18+stack.length*16+18));
+    ctx.fillStyle='#7d93bd'; ctx.font='10px monospace'; ctx.textAlign='left';
+    ctx.fillText('CALL STACK ('+stack.length+')',W-142,22);
+    ctx.font='11px monospace';
+    for(let i=0;i<stack.length && i<26;i++){ const node=stack[stack.length-1-i];
+      ctx.fillStyle= i===0? css('--call'):'#9fb4d8';
+      ctx.fillText(node.label, W-142, 38+i*16); }
+  }
+
+  let last=performance.now();
+  function frame(now){ const dt=(now-last)/1000; last=now;
+    if(running){ acc+=dt*speed; let g=0; while(acc>=1 && g<400){ acc-=1; if(!stepEvent())break; g++; } }
+    else if(stepOnce){ stepEvent(); stepOnce=false; }
+    draw(); requestAnimationFrame(frame);
+  }
+
+  document.getElementById('play').addEventListener('click',e=>{
+    if(ei>=events.length){ build(); }
+    running=!running; e.target.textContent=running?'⏸ Pause':'▶ Play';
+  });
+  document.getElementById('step').addEventListener('click',()=>{ running=false;
+    document.getElementById('play').textContent='▶ Play'; stepOnce=true; });
+  document.getElementById('restart').addEventListener('click',build);
+  document.getElementById('mode').addEventListener('change',e=>{ mode=e.target.value;
+    document.getElementById('memowrap').style.display = mode==='fib'?'flex':'none';
+    document.getElementById('n').max = mode==='fib'?'10':'12'; build(); });
+  document.getElementById('n').addEventListener('input',e=>{ n=parseInt(e.target.value,10);
+    document.getElementById('nv').textContent=n; build(); });
+  document.getElementById('memo').addEventListener('change',e=>{ memoOn=e.target.checked; build(); });
+  document.getElementById('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
+
+  build();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

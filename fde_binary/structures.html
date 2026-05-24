@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Data Structures — Stack · Queue · Binary Search Tree</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --node:#2f6df0; --hot:#ffb02e; --new:#19ff9b; --visit:#b07cff; --ptr:#16f0ff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--new)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--ptr),var(--visit));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;
+    box-shadow:0 0 40px rgba(22,240,255,.08)}
+  canvas{display:block;width:100%;height:auto}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  button,select,input[type=number]{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 12px}
+  input[type=number]{width:90px}
+  button,select{cursor:pointer} button:hover,select:hover{border-color:var(--ptr);color:#fff}
+  .row2{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px}
+  .stats{margin-top:10px;font-size:13px} .stats b{color:#fff}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>DATA STRUCTURES</h1>
+  <p class="sub">Stacks are last-in-first-out, queues are first-in-first-out, and a binary search tree keeps values ordered for fast lookup.</p>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <select id="mode">
+      <option value="stack">Stack (LIFO)</option>
+      <option value="queue">Queue (FIFO)</option>
+      <option value="bst">Binary Search Tree</option>
+    </select>
+    <label style="color:#8aa0c8;font-size:12px">value <input id="val" type="number" value="42" /></label>
+    <button id="add">Push</button>
+    <button id="remove">Pop</button>
+    <button id="rand">🎲 Random</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div class="row2 hidden" id="bstrow">
+    <button id="inorder">In-order</button>
+    <button id="preorder">Pre-order</button>
+    <button id="postorder">Post-order</button>
+    <button id="search">Search value</button>
+    <label>Speed <input id="speed" type="range" min="1" max="12" value="4" /></label>
+  </div>
+
+  <div class="stats" id="stats">&nbsp;</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const W=1000,H=440;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const $=id=>document.getElementById(id);
+
+  let mode='stack';
+  let stack=[], queue=[], bst=null;
+  let hot=null, hotTimer=0;            // highlighted value flash
+  let anim=null;                       // traversal/search animation state
+  let speed=4;
+
+  function flash(v){ hot=v; hotTimer=0.6; }
+
+  // ---- BST ----
+  function bstInsert(v){
+    if(bst===null){ bst={v,left:null,right:null}; return; }
+    let n=bst; while(true){ if(v<n.v){ if(n.left)n=n.left; else {n.left={v,left:null,right:null};return;} }
+      else if(v>n.v){ if(n.right)n=n.right; else {n.right={v,left:null,right:null};return;} }
+      else return; }
+  }
+  function layout(){
+    let i=0, maxd=0, count=0;
+    (function lay(node,depth){ if(!node)return; lay(node.left,depth+1); node.ix=i++; node.depth=depth;
+      maxd=Math.max(maxd,depth); count++; lay(node.right,depth+1); })(bst,0);
+    return {count,maxd};
+  }
+  function nodeXY(node,info){
+    const x= info.count<=1? W/2 : 40 + node.ix*((W-80)/(info.count-1));
+    const y= 50 + node.depth*((H-100)/(info.maxd+1));
+    return {x,y};
+  }
+  function traverse(kind){
+    const order=[];
+    (function go(node){ if(!node)return;
+      if(kind==='pre')order.push(node);
+      go(node.left);
+      if(kind==='in')order.push(node);
+      go(node.right);
+      if(kind==='post')order.push(node);
+    })(bst);
+    return order;
+  }
+  function searchPath(v){
+    const path=[]; let n=bst;
+    while(n){ path.push(n); if(v===n.v) return {path,found:true}; n = v<n.v? n.left:n.right; }
+    return {path,found:false};
+  }
+
+  function startAnim(list,label,foundFlag){
+    anim={list,i:-1,acc:0,label,found:foundFlag,out:[],done:false};
+  }
+
+  // ---- drawing ----
+  function rrect(x,y,w,h,r){ ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function drawBox(x,y,w,h,v,col,txt){
+    ctx.save(); ctx.shadowBlur=col?12:0; ctx.shadowColor=col||'#000';
+    ctx.fillStyle=col?'rgba(47,109,240,.16)':'#0b1426'; ctx.strokeStyle=col||'#33415f'; ctx.lineWidth=col?2.2:1.4;
+    rrect(x,y,w,h,8); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.fillStyle=txt||'#cfe6ff'; ctx.font='bold 18px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(String(v),x+w/2,y+h/2); ctx.textBaseline='alphabetic';
+  }
+
+  function drawStack(){
+    const bw=160, bh=42, x=(W-bw)/2;
+    ctx.fillStyle='#7d93bd'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText('LIFO — push & pop from the top', W/2, 24);
+    if(stack.length===0){ ctx.fillStyle='#46546f'; ctx.fillText('(empty)', W/2, H/2); return; }
+    for(let i=0;i<stack.length;i++){
+      const v=stack[i], top=(i===stack.length-1);
+      const y=H-40-(i+1)*(bh+6);
+      const col = (v===hot)?css('--new'): top?css('--hot'):null;
+      drawBox(x,y,bw,bh,v,col, top?'#ffe6b0':'#cfe6ff');
+      if(top){ ctx.fillStyle=css('--ptr'); ctx.font='12px monospace'; ctx.textAlign='left';
+        ctx.fillText('◀ TOP', x+bw+12, y+bh/2+4); }
+    }
+  }
+  function drawQueue(){
+    const bw=86, bh=52, gap=8, total=queue.length*(bw+gap)-gap;
+    let x=Math.max(20,(W-total)/2), y=H/2-bh/2;
+    ctx.fillStyle='#7d93bd'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText('FIFO — enqueue at the rear, dequeue from the front', W/2, 24);
+    if(queue.length===0){ ctx.fillStyle='#46546f'; ctx.fillText('(empty)', W/2, H/2); return; }
+    for(let i=0;i<queue.length;i++){
+      const v=queue[i];
+      const col=(v===hot)?css('--new'): (i===0)?css('--hot'):null;
+      drawBox(x,y,bw,bh,v,col);
+      if(i===0){ ctx.fillStyle=css('--ptr'); ctx.font='12px monospace'; ctx.textAlign='center';
+        ctx.fillText('FRONT', x+bw/2, y-10); }
+      if(i===queue.length-1){ ctx.fillStyle=css('--ptr'); ctx.font='12px monospace'; ctx.textAlign='center';
+        ctx.fillText('REAR', x+bw/2, y+bh+18); }
+      x+=bw+gap;
+    }
+  }
+  function drawBST(){
+    ctx.fillStyle='#7d93bd'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText('left child < parent < right child', W/2, 24);
+    if(!bst){ ctx.fillStyle='#46546f'; ctx.fillText('(empty — insert values)', W/2, H/2); return; }
+    const info=layout();
+    (function edges(node){ if(!node)return; const p=nodeXY(node,info);
+      for(const c of [node.left,node.right]){ if(c){ const q=nodeXY(c,info);
+        ctx.strokeStyle='rgba(90,110,150,.5)'; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke(); } }
+      edges(node.left); edges(node.right); })(bst);
+    const activeSet = anim? new Set(anim.out.map(o=>o)) : null;
+    const cur = anim && anim.i>=0 && anim.i<anim.list.length? anim.list[anim.i] : null;
+    (function nodes(node){ if(!node)return; const p=nodeXY(node,info), rad=17;
+      let col=css('--node');
+      if(anim && anim.visited && anim.visited.has(node)) col=css('--visit');
+      if(node.v===hot) col=css('--new');
+      if(node===cur) col=css('--hot');
+      ctx.save(); if(node===cur){ctx.shadowBlur=16;ctx.shadowColor=col;}
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p.x,p.y,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
+      ctx.fillStyle='#02121a'; ctx.font='bold 13px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(node.v),p.x,p.y); ctx.textBaseline='alphabetic';
+      nodes(node.left); nodes(node.right); })(bst);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    if(mode==='stack') drawStack();
+    else if(mode==='queue') drawQueue();
+    else drawBST();
+  }
+
+  function setStats(s){ $('stats').innerHTML=s; }
+
+  // ---- animation loop ----
+  let last=performance.now();
+  function frame(now){ const dt=(now-last)/1000; last=now;
+    if(hotTimer>0){ hotTimer-=dt; if(hotTimer<=0) hot=null; }
+    if(anim && !anim.done){
+      anim.acc+=dt*speed;
+      while(anim.acc>=1 && !anim.done){ anim.acc-=1;
+        anim.i++;
+        if(anim.i>=anim.list.length){ anim.done=true;
+          if(anim.label.indexOf('Search')===0){ setStats(anim.label+': '+(anim.found?'found '+anim.target:'not found')); }
+          else setStats(anim.label+': '+anim.out.map(n=>n.v).join(' → ')); break; }
+        const node=anim.list[anim.i];
+        if(!anim.visited) anim.visited=new Set();
+        anim.visited.add(node); anim.out.push(node);
+        setStats(anim.label+': '+anim.out.map(n=>n.v).join(' → ')+' …');
+      }
+    }
+    draw(); requestAnimationFrame(frame);
+  }
+
+  // ---- actions ----
+  function val(){ return parseInt($('val').value,10)||0; }
+  function doAdd(){
+    anim=null;
+    if(mode==='stack'){ stack.push(val()); flash(val()); }
+    else if(mode==='queue'){ queue.push(val()); flash(val()); }
+    else { bstInsert(val()); flash(val()); }
+  }
+  function doRemove(){
+    anim=null;
+    if(mode==='stack'){ const v=stack.pop(); setStats(v==null?'stack empty':'popped '+v); }
+    else if(mode==='queue'){ const v=queue.shift(); setStats(v==null?'queue empty':'dequeued '+v); }
+  }
+
+  $('mode').addEventListener('change',e=>{ mode=e.target.value; anim=null; updateUI(); setStats('&nbsp;'); });
+  function updateUI(){
+    $('bstrow').classList.toggle('hidden', mode!=='bst');
+    $('add').textContent = mode==='stack'?'Push': mode==='queue'?'Enqueue':'Insert';
+    $('remove').textContent = mode==='stack'?'Pop': mode==='queue'?'Dequeue':'—';
+    $('remove').style.display = mode==='bst'?'none':'inline-block';
+  }
+  $('add').addEventListener('click',doAdd);
+  $('remove').addEventListener('click',doRemove);
+  $('rand').addEventListener('click',()=>{ $('val').value=Math.floor(Math.random()*99)+1; doAdd(); });
+  $('clear').addEventListener('click',()=>{ stack=[];queue=[];bst=null;anim=null;setStats('cleared'); });
+  $('inorder').addEventListener('click',()=>{ if(bst){ startAnim(traverse('in'),'In-order'); } });
+  $('preorder').addEventListener('click',()=>{ if(bst){ startAnim(traverse('pre'),'Pre-order'); } });
+  $('postorder').addEventListener('click',()=>{ if(bst){ startAnim(traverse('post'),'Post-order'); } });
+  $('search').addEventListener('click',()=>{ if(bst){ const r=searchPath(val()); startAnim(r.path,'Search '+val()); anim.found=r.found; anim.target=val(); } });
+  $('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
+
+  // seed a sample BST and stack
+  [50,30,70,20,40,60,80,35].forEach(bstInsert);
+  stack=[3,7,12]; queue=[5,9,1];
+  updateUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
