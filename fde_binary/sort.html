@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sorting Visualiser — Bubble · Insertion · Selection · Merge · Quick</title>
+<style>
+  :root{ --bg:#05060c; --panel:#0c1020; --edge:#1d2540; --txt:#cfe6ff;
+    --bar:#2f6df0; --cmp:#ffb02e; --swap:#ff5d8f; --sorted:#19ff9b; --pivot:#b07cff; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace}
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 48px}
+  a.back{color:#7d93bd;text-decoration:none;font-size:12px}
+  a.back:hover{color:var(--sorted)}
+  h1{margin:8px 0 2px;font-size:clamp(20px,4vw,30px);letter-spacing:.1em;
+    background:linear-gradient(90deg,var(--cmp),var(--sorted));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  p.sub{margin:4px 0 16px;color:#8aa0c8;font-size:13px}
+  .stage{border:1px solid var(--edge);border-radius:12px;overflow:hidden;background:#04050a;
+    box-shadow:0 0 40px rgba(47,109,240,.08)}
+  canvas{display:block;width:100%;height:auto}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+  button,select{font:inherit;color:var(--txt);background:var(--panel);
+    border:1px solid var(--edge);border-radius:8px;padding:8px 12px;cursor:pointer}
+  button:hover,select:hover{border-color:var(--cmp);color:#fff}
+  label{font-size:12px;color:#8aa0c8;display:flex;gap:8px;align-items:center}
+  input[type=range]{accent-color:var(--cmp)}
+  .stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px;font-size:13px}
+  .stats b{color:#fff}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#8aa0c8}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← all animations</a>
+  <h1>SORTING VISUALISER</h1>
+  <p class="sub">Watch comparison-based sorting algorithms rearrange an array. Yellow = comparing, pink = swapping, green = in final place.</p>
+
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <div class="controls">
+    <select id="algo">
+      <option value="bubble">Bubble sort</option>
+      <option value="insertion">Insertion sort</option>
+      <option value="selection">Selection sort</option>
+      <option value="merge">Merge sort</option>
+      <option value="quick">Quick sort</option>
+    </select>
+    <button id="play">▶ Play</button>
+    <button id="step">⏭ Step</button>
+    <button id="shuffle">🔀 New array</button>
+    <label>Size <input id="size" type="range" min="8" max="80" step="1" value="36" /></label>
+    <label>Speed <input id="speed" type="range" min="1" max="120" step="1" value="30" /></label>
+  </div>
+
+  <div class="stats">
+    <span>Comparisons: <b id="cmp">0</b></span>
+    <span>Swaps / writes: <b id="swp">0</b></span>
+    <span>Status: <b id="status">ready</b></span>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--bar)"></i>unsorted</span>
+    <span><i style="background:var(--cmp)"></i>comparing</span>
+    <span><i style="background:var(--swap)"></i>swap / write</span>
+    <span><i style="background:var(--pivot)"></i>pivot / key</span>
+    <span><i style="background:var(--sorted)"></i>sorted</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  const W=1000,H=380;
+  const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+  cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  let arr=[], n=36, gen=null, running=false, stepOnce=false;
+  let cmpHi=[], swpHi=[], pivotHi=-1, sorted=new Set();
+  let cmpCount=0, swpCount=0, speed=30, acc=0;
+
+  function newArray(){
+    arr=[]; for(let i=0;i<n;i++) arr.push(1+Math.floor(Math.random()*99));
+    resetRun();
+  }
+  function resetRun(){
+    gen=null; running=false; stepOnce=false;
+    cmpHi=[]; swpHi=[]; pivotHi=-1; sorted=new Set();
+    cmpCount=0; swpCount=0; acc=0;
+    document.getElementById('play').textContent='▶ Play';
+    document.getElementById('status').textContent='ready';
+    updateStats();
+  }
+  function updateStats(){
+    document.getElementById('cmp').textContent=cmpCount;
+    document.getElementById('swp').textContent=swpCount;
+  }
+
+  const swap=(a,i,j)=>{ const t=a[i]; a[i]=a[j]; a[j]=t; };
+
+  // ---- algorithms as event generators (mutate arr in place) ----
+  function* bubble(a){
+    const m=a.length;
+    for(let i=0;i<m-1;i++){
+      for(let j=0;j<m-1-i;j++){
+        yield {compare:[j,j+1]};
+        if(a[j]>a[j+1]){ swap(a,j,j+1); yield {swap:[j,j+1]}; }
+      }
+      yield {sorted:m-1-i};
+    }
+    yield {sorted:0};
+  }
+  function* insertion(a){
+    const m=a.length;
+    yield {sorted:0};
+    for(let i=1;i<m;i++){
+      let key=a[i], j=i-1;
+      yield {pivot:i};
+      while(j>=0){
+        yield {compare:[j,i]};
+        if(a[j]>key){ a[j+1]=a[j]; yield {set:[j+1,a[j+1]]}; j--; }
+        else break;
+      }
+      a[j+1]=key; yield {set:[j+1,key]};
+    }
+    for(let k=0;k<m;k++) yield {sorted:k};
+  }
+  function* selection(a){
+    const m=a.length;
+    for(let i=0;i<m-1;i++){
+      let min=i; yield {pivot:i};
+      for(let j=i+1;j<m;j++){
+        yield {compare:[min,j]};
+        if(a[j]<a[min]) min=j;
+      }
+      if(min!==i){ swap(a,i,min); yield {swap:[i,min]}; }
+      yield {sorted:i};
+    }
+    yield {sorted:m-1};
+  }
+  function* merge(a){
+    const m=a.length;
+    function* ms(lo,hi){
+      if(hi-lo<=1) return;
+      const mid=(lo+hi)>>1;
+      yield* ms(lo,mid); yield* ms(mid,hi);
+      const buf=[]; let i=lo,j=mid;
+      while(i<mid&&j<hi){
+        yield {compare:[i,j]};
+        if(a[i]<=a[j]) buf.push(a[i++]); else buf.push(a[j++]);
+      }
+      while(i<mid) buf.push(a[i++]);
+      while(j<hi) buf.push(a[j++]);
+      for(let k=0;k<buf.length;k++){ a[lo+k]=buf[k]; yield {set:[lo+k,buf[k]]}; }
+    }
+    yield* ms(0,m);
+    for(let k=0;k<m;k++) yield {sorted:k};
+  }
+  function* quick(a){
+    const m=a.length;
+    function* qs(lo,hi){
+      if(lo>=hi){ if(lo===hi) yield {sorted:lo}; return; }
+      const pivot=a[hi]; yield {pivot:hi};
+      let i=lo;
+      for(let j=lo;j<hi;j++){
+        yield {compare:[j,hi]};
+        if(a[j]<pivot){ if(i!==j){ swap(a,i,j); yield {swap:[i,j]}; } i++; }
+      }
+      swap(a,i,hi); yield {swap:[i,hi]};
+      yield {sorted:i};
+      yield* qs(lo,i-1); yield* qs(i+1,hi);
+    }
+    yield* qs(0,m-1);
+  }
+  const ALGOS={bubble,insertion,selection,merge,quick};
+
+  function start(){
+    if(!gen){ gen=ALGOS[document.getElementById('algo').value](arr); }
+  }
+  function applyEvent(ev){
+    cmpHi=[]; swpHi=[]; pivotHi=-1;
+    if(ev.compare){ cmpHi=ev.compare; cmpCount++; }
+    else if(ev.swap){ swpHi=ev.swap; swpCount++; }
+    else if(ev.set){ swpHi=[ev.set[0]]; swpCount++; }
+    else if(ev.pivot!=null){ pivotHi=ev.pivot; }
+    else if(ev.sorted!=null){ sorted.add(ev.sorted); }
+    updateStats();
+  }
+  function tickStep(){
+    start();
+    const r=gen.next();
+    if(r.done){
+      running=false; cmpHi=[]; swpHi=[]; pivotHi=-1;
+      for(let i=0;i<n;i++) sorted.add(i);
+      document.getElementById('status').textContent='done';
+      document.getElementById('play').textContent='▶ Play';
+      return false;
+    }
+    applyEvent(r.value);
+    return true;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
+    const max=Math.max.apply(null,arr.length?arr:[1]);
+    const bw=W/arr.length;
+    for(let i=0;i<arr.length;i++){
+      const h=(arr[i]/max)*(H-30);
+      let col=css('--bar');
+      if(sorted.has(i)) col=css('--sorted');
+      if(i===pivotHi) col=css('--pivot');
+      if(cmpHi.indexOf(i)>=0) col=css('--cmp');
+      if(swpHi.indexOf(i)>=0) col=css('--swap');
+      ctx.fillStyle=col;
+      ctx.fillRect(i*bw+1, H-h, Math.max(1,bw-2), h);
+    }
+  }
+
+  let last=performance.now();
+  function frame(now){
+    const dt=(now-last)/1000; last=now;
+    if(running){
+      acc+=dt*speed;
+      let guard=0;
+      while(acc>=1 && guard<500){ acc-=1; if(!tickStep()) break; guard++; }
+    } else if(stepOnce){ tickStep(); stepOnce=false; }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- controls ----
+  document.getElementById('play').addEventListener('click',e=>{
+    if(document.getElementById('status').textContent==='done') return;
+    running=!running; e.target.textContent=running?'⏸ Pause':'▶ Play';
+    document.getElementById('status').textContent=running?'sorting…':'paused';
+  });
+  document.getElementById('step').addEventListener('click',()=>{
+    if(document.getElementById('status').textContent==='done') return;
+    running=false; document.getElementById('play').textContent='▶ Play';
+    document.getElementById('status').textContent='stepping';
+    stepOnce=true;
+  });
+  document.getElementById('shuffle').addEventListener('click',newArray);
+  document.getElementById('algo').addEventListener('change',resetRun);
+  document.getElementById('size').addEventListener('input',e=>{ n=parseInt(e.target.value,10); newArray(); });
+  document.getElementById('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
+
+  newArray();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
