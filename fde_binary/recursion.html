@@ -29,23 +29,34 @@
   .stats{margin-top:10px;font-size:13px} .stats b{color:#fff}
   .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:#8aa0c8}
   .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .code{margin:6px 0 14px;background:#070b16;border:1px solid var(--edge);border-radius:10px;
+    padding:14px 18px;font:13px/1.6 ui-monospace,Menlo,Consolas,monospace;color:#cfe6ff;
+    white-space:pre;overflow-x:auto}
+  .code .kw{color:#ff79c6} .code .builtin{color:#b07cff} .code .num{color:#ffe6b0} .code .com{color:#5f7099;font-style:italic}
 </style>
 </head>
 <body>
 <div class="wrap">
   <a class="back" href="index.html">← all animations</a>
   <h1>RECURSION CALL TREE</h1>
-  <p class="sub">Each call spawns sub-calls (orange) that return values (green) back up the tree. Turn on memoisation to see Fibonacci stop recomputing the same work.</p>
+  <p class="sub">Each call spawns sub-calls (orange) that return values (green) back up the tree. The CALL STACK on the right tracks the chain of pending calls. Turn on memoisation (Fibonacci only) to see it stop recomputing the same work.</p>
+
+  <pre id="code" class="code"></pre>
 
   <div class="stage"><canvas id="cv"></canvas></div>
 
   <div class="controls">
     <select id="mode">
-      <option value="fib">Fibonacci</option>
-      <option value="fact">Factorial</option>
+      <option value="count_down">Countdown — count_down(n)</option>
+      <option value="sum_to">Sum 1..n — sum_to(n)</option>
+      <option value="multiply" selected>Multiply via addition — multiply(a, b)</option>
+      <option value="power">Power — power(base, exp)</option>
+      <option value="factorial">Factorial — factorial(n)</option>
+      <option value="fib">Fibonacci — fib(n)</option>
     </select>
-    <label>n <input id="n" type="range" min="1" max="10" value="6" /> <b id="nv" style="color:var(--call)">6</b></label>
-    <label id="memowrap"><input id="memo" type="checkbox" /> memoise</label>
+    <label id="awrap" style="display:none">a <input id="a" type="number" value="3" min="0" max="20" style="width:60px" /></label>
+    <label>n <input id="n" type="range" min="0" max="10" value="4" /> <b id="nv" style="color:var(--call)">4</b></label>
+    <label id="memowrap" style="display:none"><input id="memo" type="checkbox" /> memoise</label>
     <button id="play">▶ Play</button>
     <button id="step">⏭ Step</button>
     <button id="restart">↺ Restart</button>
@@ -70,32 +81,150 @@
   cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-  let mode='fib', n=6, memoOn=false;
+  let mode='multiply', n=4, aArg=3, memoOn=false;
   let root=null, events=[], ei=0, callCount=0, result=null;
   let revealed=new Set(), stack=[], current=null;
   let running=false, stepOnce=false, speed=6, acc=0, maxDepth=0, leaves=0;
 
+  // ---- example definitions ----
+  // each example: {code, needsA, nMin, nMax, nDef, voidReturn, build(n,a,memoOn)}
+  function makeNode(id, label, depth){ return {id, label, value:null, children:[], depth, cached:false, base:false}; }
+
+  const EXAMPLES = {
+    count_down: {
+      code:
+`def count_down(n):
+    if n == 0:        # base case
+        return
+    print(n)
+    count_down(n - 1) # recursive call`,
+      needsA:false, nMin:1, nMax:8, nDef:5, voidReturn:true,
+      build(n){
+        const ev=[]; let id=0;
+        function rec(k, depth){
+          const node=makeNode(id++,'count_down('+k+')',depth); ev.push({t:'call',node});
+          if(k===0){ node.value='✓'; node.base=true; ev.push({t:'ret',node}); return node; }
+          node.children.push(rec(k-1, depth+1));
+          node.value='✓';
+          ev.push({t:'ret',node}); return node;
+        }
+        return {root:rec(n,0), events:ev};
+      }
+    },
+    sum_to: {
+      code:
+`def sum_to(n):
+    if n == 0:               # base case
+        return 0
+    return n + sum_to(n - 1) # recursive case`,
+      needsA:false, nMin:0, nMax:10, nDef:5, voidReturn:false,
+      build(n){
+        const ev=[]; let id=0;
+        function rec(k, depth){
+          const node=makeNode(id++,'sum_to('+k+')',depth); ev.push({t:'call',node});
+          if(k===0){ node.value=0; node.base=true; ev.push({t:'ret',node}); return node; }
+          node.children.push(rec(k-1, depth+1));
+          node.value = k + node.children[0].value;
+          ev.push({t:'ret',node}); return node;
+        }
+        return {root:rec(n,0), events:ev};
+      }
+    },
+    multiply: {
+      code:
+`# multiplying two numbers, using only addition
+def multiply(a, b):
+    if b == 0:                    # base case
+        return 0
+    return a + multiply(a, b - 1) # recursive case`,
+      needsA:true, nMin:0, nMax:8, nDef:4, voidReturn:false,
+      build(n, a){
+        const ev=[]; let id=0;
+        function rec(k, depth){
+          const node=makeNode(id++,'multiply('+a+','+k+')',depth); ev.push({t:'call',node});
+          if(k===0){ node.value=0; node.base=true; ev.push({t:'ret',node}); return node; }
+          node.children.push(rec(k-1, depth+1));
+          node.value = a + node.children[0].value;
+          ev.push({t:'ret',node}); return node;
+        }
+        return {root:rec(n,0), events:ev};
+      }
+    },
+    power: {
+      code:
+`def power(base, exp):
+    if exp == 0:                    # base case
+        return 1
+    return base * power(base, exp - 1)`,
+      needsA:true, nMin:0, nMax:8, nDef:4, voidReturn:false,
+      build(n, a){
+        const ev=[]; let id=0;
+        function rec(k, depth){
+          const node=makeNode(id++,'power('+a+','+k+')',depth); ev.push({t:'call',node});
+          if(k===0){ node.value=1; node.base=true; ev.push({t:'ret',node}); return node; }
+          node.children.push(rec(k-1, depth+1));
+          node.value = a * node.children[0].value;
+          ev.push({t:'ret',node}); return node;
+        }
+        return {root:rec(n,0), events:ev};
+      }
+    },
+    factorial: {
+      code:
+`def factorial(n):
+    if n <= 1:                    # base case
+        return 1
+    return n * factorial(n - 1)   # recursive case`,
+      needsA:false, nMin:1, nMax:10, nDef:5, voidReturn:false,
+      build(n){
+        const ev=[]; let id=0;
+        function rec(k, depth){
+          const node=makeNode(id++,'factorial('+k+')',depth); ev.push({t:'call',node});
+          if(k<=1){ node.value=1; node.base=true; ev.push({t:'ret',node}); return node; }
+          node.children.push(rec(k-1, depth+1));
+          node.value = k * node.children[0].value;
+          ev.push({t:'ret',node}); return node;
+        }
+        return {root:rec(n,0), events:ev};
+      }
+    },
+    fib: {
+      code:
+`def fib(n):
+    if n < 2:                     # base case
+        return n
+    return fib(n - 1) + fib(n - 2)  # two recursive calls!`,
+      needsA:false, supportsMemo:true, nMin:1, nMax:9, nDef:6, voidReturn:false,
+      build(n, _a, memoOn){
+        const ev=[]; let id=0; const memo=memoOn?new Map():null;
+        function rec(k, depth){
+          const node=makeNode(id++,'fib('+k+')',depth); ev.push({t:'call',node});
+          if(memo&&memo.has(k)){ node.value=memo.get(k); node.cached=true; ev.push({t:'ret',node}); return node; }
+          if(k<2){ node.value=k; node.base=true; if(memo)memo.set(k,k); ev.push({t:'ret',node}); return node; }
+          node.children.push(rec(k-1, depth+1));
+          node.children.push(rec(k-2, depth+1));
+          node.value = node.children[0].value + node.children[1].value;
+          if(memo)memo.set(k,node.value);
+          ev.push({t:'ret',node}); return node;
+        }
+        return {root:rec(n,0), events:ev};
+      }
+    }
+  };
+
+  // ---- syntax-highlight Python (very light, regex-based) ----
+  function hl(src){
+    const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    return esc(src)
+      .replace(/(#[^\n]*)/g,'<span class="com">$1</span>')
+      .replace(/\b(def|return|if|else|elif|print)\b/g,'<span class="kw">$1</span>')
+      .replace(/\b(\d+)\b/g,'<span class="num">$1</span>');
+  }
+
   function build(){
-    let id=0; events=[]; const memo=memoOn?new Map():null;
-    function fib(k,depth){
-      const node={id:id++,label:'fib('+k+')',value:null,children:[],depth,cached:false,base:false};
-      events.push({t:'call',node});
-      if(memo&&memo.has(k)){ node.value=memo.get(k); node.cached=true; events.push({t:'ret',node}); return node; }
-      if(k<2){ node.value=k; node.base=true; if(memo)memo.set(k,k); events.push({t:'ret',node}); return node; }
-      node.children.push(fib(k-1,depth+1));
-      node.children.push(fib(k-2,depth+1));
-      node.value=node.children[0].value+node.children[1].value;
-      if(memo)memo.set(k,node.value); events.push({t:'ret',node}); return node;
-    }
-    function fact(k,depth){
-      const node={id:id++,label:k+'!',value:null,children:[],depth,cached:false,base:false};
-      events.push({t:'call',node});
-      if(k<=1){ node.value=1; node.base=true; events.push({t:'ret',node}); return node; }
-      node.children.push(fact(k-1,depth+1));
-      node.value=k*node.children[0].value;
-      events.push({t:'ret',node}); return node;
-    }
-    root = mode==='fib'? fib(n,0) : fact(n,0);
+    const ex = EXAMPLES[mode];
+    const out = ex.build(n, aArg, memoOn);
+    root = out.root; events = out.events;
     // layout
     let lx=0; maxDepth=0;
     (function lay(node){
@@ -109,6 +238,20 @@
     document.getElementById('play').textContent='▶ Play';
     document.getElementById('calls').textContent='0';
     document.getElementById('result').textContent='–';
+    document.getElementById('code').innerHTML = hl(ex.code);
+  }
+
+  function applyExample(){
+    const ex = EXAMPLES[mode];
+    document.getElementById('awrap').style.display = ex.needsA?'flex':'none';
+    document.getElementById('memowrap').style.display = ex.supportsMemo?'flex':'none';
+    const nEl = document.getElementById('n');
+    nEl.min = ex.nMin; nEl.max = ex.nMax;
+    if(parseInt(nEl.value,10) > ex.nMax || parseInt(nEl.value,10) < ex.nMin) nEl.value = ex.nDef;
+    n = parseInt(nEl.value,10);
+    document.getElementById('nv').textContent = n;
+    if(!ex.supportsMemo) { memoOn = false; document.getElementById('memo').checked = false; }
+    build();
   }
 
   function nodeXY(node){
@@ -191,15 +334,14 @@
   document.getElementById('step').addEventListener('click',()=>{ running=false;
     document.getElementById('play').textContent='▶ Play'; stepOnce=true; });
   document.getElementById('restart').addEventListener('click',build);
-  document.getElementById('mode').addEventListener('change',e=>{ mode=e.target.value;
-    document.getElementById('memowrap').style.display = mode==='fib'?'flex':'none';
-    document.getElementById('n').max = mode==='fib'?'10':'12'; build(); });
+  document.getElementById('mode').addEventListener('change',e=>{ mode=e.target.value; applyExample(); });
   document.getElementById('n').addEventListener('input',e=>{ n=parseInt(e.target.value,10);
     document.getElementById('nv').textContent=n; build(); });
+  document.getElementById('a').addEventListener('input',e=>{ aArg=parseInt(e.target.value,10)||0; build(); });
   document.getElementById('memo').addEventListener('change',e=>{ memoOn=e.target.checked; build(); });
   document.getElementById('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
 
-  build();
+  applyExample();
   requestAnimationFrame(frame);
 })();
 </script>
