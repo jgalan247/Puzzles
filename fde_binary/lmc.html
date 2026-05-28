@@ -41,6 +41,22 @@
   .out{font-size:16px;color:var(--out);min-height:22px;word-break:break-all}
   .msg{margin-top:8px;font-size:12px;color:#8aa0c8;white-space:pre-wrap}
   .msg.err{color:var(--err)}
+  select{font:inherit;color:var(--txt);background:#070b16;border:1px solid var(--edge);
+    border-radius:8px;padding:8px 10px;width:100%;margin-top:4px;cursor:pointer}
+  select:hover{border-color:var(--acc)}
+  .explain{margin-top:36px;border-top:1px solid var(--edge);padding-top:8px}
+  .explain h2{font-size:13px;letter-spacing:.18em;color:#9fb4d8;text-transform:uppercase;margin:26px 0 10px}
+  .explain h2:first-of-type{margin-top:18px}
+  .explain h3{font-size:13px;color:var(--acc);margin:16px 0 6px;letter-spacing:.05em}
+  .explain p{color:#9fb4d8;line-height:1.7;font-size:13.5px;margin:8px 0}
+  .explain code{color:#bdd4ff;background:#0a0f1c;padding:1px 7px;border-radius:4px;font-size:12.5px}
+  .explain ul,.explain ol{color:#9fb4d8;line-height:1.75;font-size:13.5px;padding-left:22px}
+  .explain b{color:#cfe6ff}
+  .explain table{border-collapse:collapse;margin-top:10px;font-size:13px;width:100%;max-width:660px}
+  .explain th,.explain td{padding:6px 12px;border:1px solid var(--edge);text-align:left;color:#cfe6ff}
+  .explain th{color:#7d93bd;font-weight:400;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .explain td.mn{color:var(--acc);font-weight:700}
+  .explain td.op{color:#ffd9a0}
 </style>
 </head>
 <body>
@@ -52,7 +68,17 @@
   <div class="layout">
     <div class="panel">
       <strong style="font-size:12px;color:#9fb4d8;letter-spacing:.1em">PROGRAM</strong>
-      <textarea id="code"></textarea>
+      <label style="margin:8px 0 0">Example
+        <select id="example">
+          <option value="sum">Sequence — Sum two numbers</option>
+          <option value="max">Selection — Maximum of two numbers</option>
+          <option value="positive">Selection — Is input positive?</option>
+          <option value="countdown">Iteration — Countdown to zero</option>
+          <option value="countup">Iteration — Count up to N</option>
+          <option value="multiply">Iteration — Multiply by repeated addition</option>
+        </select>
+      </label>
+      <textarea id="code" style="margin-top:8px"></textarea>
       <label>Inputs (used by INP, space or comma separated)</label>
       <input id="inputs" type="text" value="7 5" />
       <div class="controls">
@@ -77,22 +103,209 @@
       <div class="mem" id="mem"></div>
     </div>
   </div>
+
+  <section class="explain">
+    <h2>How the Little Man Computer works — step by step</h2>
+
+    <h3>What the LMC is</h3>
+    <p>The Little Man Computer is a tiny model of a real CPU, designed for teaching. Imagine a single person (the &ldquo;little man&rdquo;) sitting in a room with 100 numbered <b>mailboxes</b>, a small calculator (the <b>accumulator</b>), a finger pointing at the next mailbox to read (the <b>program counter</b>), an in-tray (input), and an out-tray (output). That&rsquo;s the whole machine.</p>
+
+    <h3>The pieces (on the right of the page)</h3>
+    <ul>
+      <li><b>Mailboxes 0–99</b> — the memory. Each mailbox holds a 3-digit number (<code>000</code>–<code>999</code>). Some mailboxes hold instructions; some hold data.</li>
+      <li><b>ACC</b> (Accumulator) — a single register where all arithmetic happens.</li>
+      <li><b>PC</b> (Program Counter) — the address of the next mailbox to execute. The orange-bordered cell in the memory grid.</li>
+      <li><b>INSTRUCTION</b> — the instruction currently being executed (decoded from the mailbox the PC just pointed at).</li>
+      <li><b>OUTPUT</b> — every number sent by an <code>OUT</code> instruction lands here.</li>
+    </ul>
+
+    <h3>Instructions are just numbers</h3>
+    <p>Every LMC instruction is a 3-digit number. The <b>first digit</b> is the <b>opcode</b> (what to do); the <b>last two digits</b> are the <b>operand</b> (which mailbox to use).</p>
+    <p>Example: <code>ADD&nbsp;5</code> becomes the number <code>105</code> — opcode <code>1</code> (ADD), operand <code>05</code>. The <b>Assemble</b> button does this conversion: it reads your assembly text and fills the mailboxes with the right numbers.</p>
+
+    <h3>The Fetch–Decode–Execute cycle</h3>
+    <p>Every instruction goes through the same three steps. Click <b>Step</b> once and you'll run one full cycle:</p>
+    <ol>
+      <li><b>Fetch</b> — copy the number in mailbox[PC] into the INSTRUCTION register, then add 1 to PC so it points at the <i>next</i> instruction.</li>
+      <li><b>Decode</b> — split the 3 digits into opcode and operand to work out what to do.</li>
+      <li><b>Execute</b> — do it.
+        <ul>
+          <li><code>LDA addr</code> &rarr; ACC = mailbox[addr] (the cyan-flash on the memory grid shows which mailbox was touched).</li>
+          <li><code>STA addr</code> &rarr; mailbox[addr] = ACC.</li>
+          <li><code>ADD addr</code> &rarr; ACC = ACC + mailbox[addr].</li>
+          <li><code>SUB addr</code> &rarr; ACC = ACC − mailbox[addr].</li>
+          <li><code>BRA addr</code> &rarr; jump: PC = addr.</li>
+          <li><code>BRZ addr</code> &rarr; jump only if ACC is zero.</li>
+          <li><code>BRP addr</code> &rarr; jump only if ACC is positive (≥ 0).</li>
+          <li><code>INP</code> &rarr; take the next number from the Inputs box, put it in ACC.</li>
+          <li><code>OUT</code> &rarr; copy ACC into the OUTPUT list.</li>
+          <li><code>HLT</code> &rarr; stop.</li>
+        </ul>
+      </li>
+    </ol>
+    <p>Then the cycle repeats with the new PC. The machine keeps running until it hits a <code>HLT</code>.</p>
+
+    <h3>The instruction set in one table</h3>
+    <table>
+      <thead><tr><th>Mnemonic</th><th>Code</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td class="mn">INP</td><td class="op">901</td><td>take the next input into ACC</td></tr>
+        <tr><td class="mn">OUT</td><td class="op">902</td><td>send ACC to OUTPUT</td></tr>
+        <tr><td class="mn">LDA&nbsp;xx</td><td class="op">5xx</td><td>load mailbox[xx] into ACC</td></tr>
+        <tr><td class="mn">STA&nbsp;xx</td><td class="op">3xx</td><td>store ACC into mailbox[xx]</td></tr>
+        <tr><td class="mn">ADD&nbsp;xx</td><td class="op">1xx</td><td>ACC = ACC + mailbox[xx]</td></tr>
+        <tr><td class="mn">SUB&nbsp;xx</td><td class="op">2xx</td><td>ACC = ACC − mailbox[xx]</td></tr>
+        <tr><td class="mn">BRA&nbsp;xx</td><td class="op">6xx</td><td>unconditional jump to xx</td></tr>
+        <tr><td class="mn">BRZ&nbsp;xx</td><td class="op">7xx</td><td>jump to xx if ACC = 0</td></tr>
+        <tr><td class="mn">BRP&nbsp;xx</td><td class="op">8xx</td><td>jump to xx if ACC ≥ 0</td></tr>
+        <tr><td class="mn">HLT</td><td class="op">000</td><td>stop</td></tr>
+        <tr><td class="mn">DAT&nbsp;n</td><td class="op">nnn</td><td>declare a data slot (optional initial value)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Labels</h3>
+    <p>Labels are nicknames you give to a mailbox address. When the assembler sees <code>loop&nbsp;&nbsp;LDA&nbsp;n</code>, it remembers &ldquo;the address of <i>that</i> instruction is called <code>loop</code>&rdquo; — so any later <code>BRA&nbsp;loop</code> is automatically turned into the correct mailbox number. Labels save you from having to count addresses by hand.</p>
+
+    <h3>Three patterns of control flow</h3>
+    <p>Every program — in any language — is built from three patterns. LMC shows them in their rawest form:</p>
+    <ul>
+      <li><b>Sequence</b> — instructions run top-to-bottom because PC simply increments by 1 each cycle. The <i>Sum two numbers</i> example uses nothing but sequence.</li>
+      <li><b>Selection</b> — <code>BRZ</code> and <code>BRP</code> let the program take different paths based on what's in ACC. The <i>Max of two</i> example computes <code>b − a</code>, then <code>BRP</code> jumps to one branch if the result is ≥ 0 and falls through to the other branch if it's negative.</li>
+      <li><b>Iteration</b> — <code>BRA</code> jumps backwards to repeat a block of instructions. Combined with a counter that's decremented each loop and a <code>BRZ</code> exit test, you get a <code>while</code>/<code>for</code> loop. The <i>Countdown</i> and <i>Multiply</i> examples are loops.</li>
+    </ul>
+
+    <h3>Walking through one cycle — &ldquo;ADD 1&rdquo; in mailbox 3</h3>
+    <p>Suppose the PC is <code>3</code>, mailbox[3] holds <code>101</code> (<code>ADD&nbsp;1</code>), mailbox[1] holds <code>7</code>, and ACC is <code>5</code>.</p>
+    <ol>
+      <li><b>Fetch</b>: read mailbox[3] → <code>101</code>. INSTRUCTION = <code>ADD 1</code>. PC becomes <code>4</code>.</li>
+      <li><b>Decode</b>: <code>1xx</code> means ADD; operand is <code>01</code>.</li>
+      <li><b>Execute</b>: read mailbox[1] → <code>7</code>. ACC = 5 + 7 = <b>12</b>.</li>
+    </ol>
+    <p>Then the cycle starts again with PC = 4. Press <b>Step</b> on the simulator and watch the orange PC arrow move, the ACC change, and the mailbox you read flash cyan.</p>
+
+    <h3>How to use this page</h3>
+    <ol>
+      <li>Pick an example from the dropdown above the code editor.</li>
+      <li>Click <b>⚙ Assemble</b> — the mailboxes fill with numbers.</li>
+      <li>Click <b>⏭ Step</b> to advance one instruction at a time and read every change, or <b>▶ Run</b> to play through and adjust the <b>Speed</b> slider to taste.</li>
+      <li>Change the Inputs and assemble again to see the same program behave with different data.</li>
+      <li>Edit the code yourself — the simulator will tell you about any assembly errors.</li>
+    </ol>
+  </section>
 </div>
 
 <script>
 (function(){
   "use strict";
   const $=id=>document.getElementById(id);
-  const DEFAULT=
-`// Adds two input numbers and outputs the sum
+
+  const EXAMPLES = {
+    sum: { inputs:'7 5', code:
+`// SEQUENCE — Add two input numbers and output the sum
         INP
         STA first
         INP
         ADD first
         OUT
         HLT
-first   DAT`;
-  $('code').value=DEFAULT;
+first   DAT` },
+
+    max: { inputs:'7 5', code:
+`// SELECTION — Output the larger of two inputs
+        INP             // read first number
+        STA a
+        INP             // read second number
+        STA b
+        SUB a           // ACC = b - a
+        BRP outB        // if (b - a) >= 0, b is bigger (or equal)
+        LDA a           // else a is bigger
+        OUT
+        HLT
+outB    LDA b
+        OUT
+        HLT
+a       DAT
+b       DAT` },
+
+    positive: { inputs:'5', code:
+`// SELECTION — Output 1 if input is positive, 0 if zero
+        INP
+        BRZ isZero      // if ACC == 0 jump to isZero
+        BRP isPos       // if ACC >= 0 jump to isPos
+        HLT             // (negative inputs are rare on LMC)
+isPos   LDA one
+        OUT
+        HLT
+isZero  LDA zero
+        OUT
+        HLT
+one     DAT 1
+zero    DAT 0` },
+
+    countdown: { inputs:'5', code:
+`// ITERATION — Count down from N to 0
+        INP
+        STA n
+loop    LDA n
+        OUT             // output current n
+        BRZ end         // stop when n reaches 0
+        LDA n
+        SUB one
+        STA n           // n = n - 1
+        BRA loop        // jump back
+end     HLT
+n       DAT
+one     DAT 1` },
+
+    countup: { inputs:'5', code:
+`// ITERATION — Count up from 1 to N
+        LDA one
+        STA i           // i = 1
+        INP
+        STA n
+loop    LDA i
+        OUT             // output i
+        LDA i
+        ADD one
+        STA i           // i = i + 1
+        LDA n
+        SUB i           // ACC = n - i
+        BRP loop        // if (n - i) >= 0, keep going
+        HLT
+i       DAT
+n       DAT
+one     DAT 1` },
+
+    multiply: { inputs:'6 7', code:
+`// ITERATION + SELECTION — Multiply by repeated addition
+        INP
+        STA a
+        INP
+        STA b
+loop    LDA b
+        BRZ done        // when b reaches 0 we're finished
+        LDA result
+        ADD a
+        STA result      // result = result + a
+        LDA b
+        SUB one
+        STA b           // b = b - 1
+        BRA loop
+done    LDA result
+        OUT
+        HLT
+a       DAT
+b       DAT
+result  DAT 0
+one     DAT 1` }
+  };
+
+  function loadExample(name){
+    const e = EXAMPLES[name]; if(!e) return;
+    $('code').value = e.code;
+    $('inputs').value = e.inputs;
+  }
+  loadExample('sum');
 
   const OPS={ADD:1,SUB:2,STA:3,LDA:5,BRA:6,BRZ:7,BRP:8};
   const MNEM={INP:1,OUT:1}; // handled specially
@@ -219,6 +432,10 @@ first   DAT`;
   $('step').addEventListener('click',()=>{ running=false; $('run').textContent='▶ Run'; stepCPU(); });
   $('reset').addEventListener('click',()=>{ reset(true); setMsg('Reset — ACC, PC and output cleared.',false); });
   $('speed').addEventListener('input',e=>{ speed=parseInt(e.target.value,10); });
+  $('example').addEventListener('change',e=>{
+    loadExample(e.target.value);
+    if(assemble()){ buildMem(); render(); }
+  });
 
   // initial assemble
   if(assemble()){ buildMem(); render(); }
