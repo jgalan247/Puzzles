@@ -44,15 +44,14 @@
     <select id="algo">
       <option value="bubble">Bubble sort</option>
       <option value="insertion">Insertion sort</option>
-      <option value="selection">Selection sort</option>
-      <option value="merge">Merge sort</option>
       <option value="quick">Quick sort</option>
+      <option value="merge">Merge sort</option>
     </select>
     <button id="play">▶ Play</button>
     <button id="step">⏭ Step</button>
     <button id="shuffle">🔀 New array</button>
-    <label>Size <input id="size" type="range" min="8" max="80" step="1" value="36" /></label>
-    <label>Speed <input id="speed" type="range" min="1" max="120" step="1" value="30" /></label>
+    <label>Size <input id="size" type="range" min="6" max="24" step="1" value="12" /></label>
+    <label>Speed <input id="speed" type="range" min="1" max="40" step="1" value="6" /></label>
   </div>
 
   <div class="stats">
@@ -68,20 +67,23 @@
     <span><i style="background:var(--pivot)"></i>pivot / key</span>
     <span><i style="background:var(--sorted)"></i>sorted</span>
   </div>
+  <p style="color:#5f7099;font-size:12px;margin-top:14px;line-height:1.6">
+    Numbers are randomised each time you click <b>New array</b> (or change the size). The same algorithm runs every comparison and swap step-by-step — try <b>Step</b> for one operation at a time.
+  </p>
 </div>
 
 <script>
 (function(){
   "use strict";
   const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
-  const W=1000,H=380;
+  const W=1000,H=220;
   const dpr=Math.max(1,Math.min(2,window.devicePixelRatio||1));
   cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-  let arr=[], n=36, gen=null, running=false, stepOnce=false;
+  let arr=[], n=12, gen=null, running=false, stepOnce=false;
   let cmpHi=[], swpHi=[], pivotHi=-1, sorted=new Set();
-  let cmpCount=0, swpCount=0, speed=30, acc=0;
+  let cmpCount=0, swpCount=0, speed=6, acc=0;
 
   function newArray(){
     arr=[]; for(let i=0;i<n;i++) arr.push(1+Math.floor(Math.random()*99));
@@ -129,19 +131,6 @@
     }
     for(let k=0;k<m;k++) yield {sorted:k};
   }
-  function* selection(a){
-    const m=a.length;
-    for(let i=0;i<m-1;i++){
-      let min=i; yield {pivot:i};
-      for(let j=i+1;j<m;j++){
-        yield {compare:[min,j]};
-        if(a[j]<a[min]) min=j;
-      }
-      if(min!==i){ swap(a,i,min); yield {swap:[i,min]}; }
-      yield {sorted:i};
-    }
-    yield {sorted:m-1};
-  }
   function* merge(a){
     const m=a.length;
     function* ms(lo,hi){
@@ -176,7 +165,7 @@
     }
     yield* qs(0,m-1);
   }
-  const ALGOS={bubble,insertion,selection,merge,quick};
+  const ALGOS={bubble,insertion,quick,merge};
 
   function start(){
     if(!gen){ gen=ALGOS[document.getElementById('algo').value](arr); }
@@ -204,21 +193,35 @@
     return true;
   }
 
+  function rrect(x,y,w,h,r){ ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
   function draw(){
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
-    const max=Math.max.apply(null,arr.length?arr:[1]);
-    const bw=W/arr.length;
+    if(!arr.length) return;
+    const cw=W/arr.length, ch=72, cy=(H-ch)/2-6;
     for(let i=0;i<arr.length;i++){
-      const h=(arr[i]/max)*(H-30);
-      let col=css('--bar');
-      if(sorted.has(i)) col=css('--sorted');
-      if(i===pivotHi) col=css('--pivot');
-      if(cmpHi.indexOf(i)>=0) col=css('--cmp');
-      if(swpHi.indexOf(i)>=0) col=css('--swap');
-      ctx.fillStyle=col;
-      ctx.fillRect(i*bw+1, H-h, Math.max(1,bw-2), h);
+      const x=i*cw+3;
+      let fill='#0b1426', stroke=css('--bar'), txt='#cfe6ff';
+      if(sorted.has(i)){ fill='rgba(25,255,155,.16)'; stroke=css('--sorted'); txt='#bfffe0'; }
+      if(i===pivotHi){ fill='rgba(176,124,255,.18)'; stroke=css('--pivot'); txt='#dec5ff'; }
+      if(cmpHi.indexOf(i)>=0){ fill='rgba(255,176,46,.22)'; stroke=css('--cmp'); txt='#ffe6b0'; }
+      if(swpHi.indexOf(i)>=0){ fill='rgba(255,93,143,.22)'; stroke=css('--swap'); txt='#ffc2d5'; }
+      const hot = (cmpHi.indexOf(i)>=0 || swpHi.indexOf(i)>=0 || i===pivotHi);
+      ctx.save();
+      if(hot){ ctx.shadowBlur=14; ctx.shadowColor=stroke; }
+      ctx.fillStyle=fill; ctx.strokeStyle=stroke; ctx.lineWidth=hot?2.2:1.6;
+      rrect(x,cy,cw-6,ch,9); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle=txt;
+      ctx.font='bold '+Math.min(22, Math.max(13, cw*0.38))+'px monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(arr[i]), x+(cw-6)/2, cy+ch/2);
+      ctx.fillStyle='#5f7099'; ctx.font='10px monospace'; ctx.textBaseline='top';
+      ctx.fillText(String(i), x+(cw-6)/2, cy+ch+5);
     }
+    ctx.textBaseline='alphabetic';
   }
 
   let last=performance.now();
