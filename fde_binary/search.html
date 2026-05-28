@@ -33,7 +33,7 @@
 <div class="wrap">
   <a class="back" href="index.html">← all animations</a>
   <h1>SEARCHING: LINEAR vs BINARY</h1>
-  <p class="sub">Both search the same sorted array for the same target. Linear checks every cell; binary halves the range each step.</p>
+  <p class="sub">Linear search works on <em>any</em> array — sorted or not. Binary search needs a sorted array to halve the range. Both rows below hold the <em>same values</em>, just in different orders, and search for the same target.</p>
 
   <div class="stage"><canvas id="cv"></canvas></div>
 
@@ -58,14 +58,19 @@
   cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-  let arr=[], n=16, target=0, speed=3, acc=0;
+  let arrBin=[], arrLin=[], n=16, target=0, speed=3, acc=0;
   let running=false, stepOnce=false;
   let lin, bin; // search state objects
 
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
   function newArray(keepTarget){
-    arr=[]; let v=1+Math.floor(Math.random()*6);
-    for(let i=0;i<n;i++){ arr.push(v); v+=1+Math.floor(Math.random()*6); }
-    if(!keepTarget) target=arr[Math.floor(Math.random()*n)];
+    // build a sorted base array of distinct values
+    arrBin=[]; let v=1+Math.floor(Math.random()*6);
+    for(let i=0;i<n;i++){ arrBin.push(v); v+=1+Math.floor(Math.random()*6); }
+    // linear gets a shuffled copy — same values, different order
+    arrLin=shuffle(arrBin.slice());
+    if(!keepTarget) target=arrBin[Math.floor(Math.random()*n)];
     document.getElementById('target').value=target;
     reset();
   }
@@ -77,19 +82,19 @@
   }
 
   function* linear(){
-    for(let i=0;i<arr.length;i++){
+    for(let i=0;i<arrLin.length;i++){
       yield {i};
-      if(arr[i]===target){ yield {found:i}; return; }
+      if(arrLin[i]===target){ yield {found:i}; return; }
     }
     yield {notfound:true};
   }
   function* binary(){
-    let lo=0,hi=arr.length-1;
+    let lo=0,hi=arrBin.length-1;
     while(lo<=hi){
       const mid=(lo+hi)>>1;
       yield {lo,hi,mid};
-      if(arr[mid]===target){ yield {found:mid,lo,hi}; return; }
-      else if(arr[mid]<target) lo=mid+1; else hi=mid-1;
+      if(arrBin[mid]===target){ yield {found:mid,lo,hi}; return; }
+      else if(arrBin[mid]<target) lo=mid+1; else hi=mid-1;
     }
     yield {notfound:true,lo,hi};
   }
@@ -118,7 +123,7 @@
     return true;
   }
 
-  function drawArray(y,title,info,classifier){
+  function drawArray(y,title,info,classifier,data){
     const cw=W/n, bh=70;
     ctx.fillStyle='#8aa0c8'; ctx.font='12px monospace'; ctx.textAlign='left';
     ctx.fillText(title, 6, y-10);
@@ -137,7 +142,7 @@
       rrect(x+2,y,cw-4,bh,6); ctx.fill(); ctx.stroke(); ctx.restore();
       ctx.fillStyle=txt; ctx.font='bold '+Math.min(16,cw*0.42)+'px monospace';
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(String(arr[i]), x+cw/2, y+bh/2);
+      ctx.fillText(String(data[i]), x+cw/2, y+bh/2);
       ctx.fillStyle='#5f7099'; ctx.font='9px monospace'; ctx.textBaseline='top';
       ctx.fillText(String(i), x+cw/2, y+bh+4);
     }
@@ -165,8 +170,8 @@
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle=css('--bg'); ctx.fillRect(0,0,W,H);
     const res=(s,name)=> s.found>=0?('found at '+s.found):(s.done?'not found':'') ;
-    drawArray(48, 'LINEAR  O(n)   target = '+target, 'comparisons: '+lin.cmp+'   '+res(lin), linClass);
-    drawArray(190,'BINARY  O(log n)', 'comparisons: '+bin.cmp+'   '+res(bin), binClass);
+    drawArray(48, 'LINEAR  O(n)  — unsorted   target = '+target, 'comparisons: '+lin.cmp+'   '+res(lin), linClass, arrLin);
+    drawArray(190,'BINARY  O(log n)  — sorted', 'comparisons: '+bin.cmp+'   '+res(bin), binClass, arrBin);
   }
 
   let last=performance.now();
@@ -185,10 +190,10 @@
   document.getElementById('step').addEventListener('click',()=>{ running=false;
     document.getElementById('play').textContent='▶ Play'; stepOnce=true; });
   document.getElementById('new').addEventListener('click',()=>newArray(false));
-  document.getElementById('present').addEventListener('click',()=>{ target=arr[Math.floor(Math.random()*n)];
+  document.getElementById('present').addEventListener('click',()=>{ target=arrBin[Math.floor(Math.random()*n)];
     document.getElementById('target').value=target; reset(); });
   document.getElementById('absent').addEventListener('click',()=>{ // a value guaranteed not in array
-    let t; do{ t=1+Math.floor(Math.random()*(arr[n-1]+4)); }while(arr.indexOf(t)>=0);
+    let t; do{ t=1+Math.floor(Math.random()*(arrBin[n-1]+4)); }while(arrBin.indexOf(t)>=0);
     target=t; document.getElementById('target').value=target; reset(); });
   document.getElementById('target').addEventListener('change',e=>{ target=parseInt(e.target.value,10)||0; reset(); });
   document.getElementById('size').addEventListener('input',e=>{ n=parseInt(e.target.value,10); newArray(false); });
