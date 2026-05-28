@@ -32,6 +32,16 @@
   .card .k{font-size:11px;letter-spacing:.1em;color:#7d93bd;text-transform:uppercase}
   .card .v{font-size:18px;margin-top:4px;color:#fff}
   .flag.on{color:var(--warn)} .flag.off{color:#5f7099}
+  .explain{margin-top:36px;border-top:1px solid var(--edge);padding-top:8px}
+  .explain h2{font-size:13px;letter-spacing:.18em;color:#9fb4d8;text-transform:uppercase;margin:26px 0 10px}
+  .explain h2:first-of-type{margin-top:18px}
+  .explain p{color:#9fb4d8;line-height:1.7;font-size:13.5px;margin:8px 0}
+  .explain code{color:#bdd4ff;background:#0a0f1c;padding:1px 7px;border-radius:4px;font-size:12.5px}
+  .explain ul{color:#9fb4d8;line-height:1.75;font-size:13.5px;padding-left:20px}
+  .explain b{color:#cfe6ff}
+  .explain table{border-collapse:collapse;margin-top:10px;font-size:13px}
+  .explain th,.explain td{padding:6px 14px;border:1px solid var(--edge);text-align:center;color:#cfe6ff}
+  .explain th{color:#7d93bd;font-weight:400;font-size:11px;letter-spacing:.06em}
 </style>
 </head>
 <body>
@@ -58,6 +68,8 @@
     <label>Bits
       <select id="width"><option>4</option><option selected>8</option><option>16</option></select>
     </label>
+    <label><input id="signed" type="checkbox" /> signed (2&rsquo;s complement)</label>
+    <button id="rand">🎲 Random</button>
     <button id="play">⏸ Pause</button>
     <button id="step">⏭ Step</button>
   </div>
@@ -68,6 +80,50 @@
     <div class="card"><div class="k">Result (unsigned / signed)</div><div class="v" id="rr">–</div></div>
     <div class="card"><div class="k">Flags</div><div class="v"><span id="fc" class="flag off">carry 0</span> &nbsp; <span id="fo" class="flag off">overflow 0</span></div></div>
   </div>
+
+  <section class="explain">
+    <h2>Random binary numbers</h2>
+    <p>Click <b>🎲 Random</b> to fill A and B with random values within the current bit-width and mode. In unsigned mode the values are <code>0 … 2<sup>w</sup>−1</code>; in signed mode they are <code>−2<sup>w−1</sup> … 2<sup>w−1</sup>−1</code>.</p>
+
+    <h2>What is two&rsquo;s complement?</h2>
+    <p>With only <code>w</code> bits you can store <code>2<sup>w</sup></code> different bit patterns. <b>Unsigned</b> uses them all for non-negative numbers (0 to 2<sup>w</sup>−1). <b>Signed two&rsquo;s complement</b> uses half of the patterns for non-negative numbers and the other half for negatives:</p>
+    <table>
+      <thead><tr><th>Bits w</th><th>Unsigned range</th><th>Signed (2&rsquo;s comp) range</th></tr></thead>
+      <tbody>
+        <tr><td>4</td><td>0 … 15</td><td>−8 … +7</td></tr>
+        <tr><td>8</td><td>0 … 255</td><td>−128 … +127</td></tr>
+        <tr><td>16</td><td>0 … 65 535</td><td>−32 768 … +32 767</td></tr>
+      </tbody>
+    </table>
+
+    <h2>How to encode a negative number</h2>
+    <ul>
+      <li>Write the positive number in binary.</li>
+      <li><b>Invert</b> every bit (1&rarr;0, 0&rarr;1) — this is the <b>one&rsquo;s complement</b>.</li>
+      <li><b>Add 1</b> — and you have the two&rsquo;s complement.</li>
+    </ul>
+    <p>Example, 4-bit, <code>−5</code>:</p>
+    <ul>
+      <li>+5 = <code>0101</code></li>
+      <li>invert &rarr; <code>1010</code></li>
+      <li>+1 &rarr; <code>1011</code> &nbsp;=&nbsp; <code>−5</code></li>
+    </ul>
+
+    <h2>How to read a signed value</h2>
+    <p>If the <b>most-significant bit (MSB) is 0</b>, the number is non-negative — read it normally. If the MSB is <b>1</b>, the number is negative — invert all bits, add 1, that&rsquo;s the magnitude, then put a minus sign in front.</p>
+    <p>Example, 4-bit <code>1101</code>: MSB is 1, so it&rsquo;s negative. Invert &rarr; <code>0010</code>, add 1 &rarr; <code>0011</code> = 3. Therefore <code>1101</code> = <b>−3</b>.</p>
+
+    <h2>Why use it?</h2>
+    <ul>
+      <li><b>One representation for zero</b> — unlike sign-and-magnitude, there is no separate <code>+0</code> and <code>−0</code>.</li>
+      <li><b>Subtraction becomes addition</b> — the hardware adder doesn&rsquo;t need a separate subtraction circuit; it computes <code>A − B</code> as <code>A + NOT B + 1</code> (visible in the carry-in of bit 0 when you pick the SUB operation here).</li>
+      <li><b>Overflow is detected easily</b> — exactly when the carry into the MSB differs from the carry out of the MSB.</li>
+    </ul>
+
+    <h2>The signed-overflow flag</h2>
+    <p>The <code>overflow</code> indicator lights up when the <i>signed</i> result doesn&rsquo;t fit in <code>w</code> bits. For example, in 4-bit signed: <code>7 + 1 = 8</code>, but 8 doesn&rsquo;t fit in the range −8 … +7, so the bit pattern <code>1000</code> is read as <b>−8</b> instead of +8 — overflow!</p>
+    <p>Toggle the <b>signed</b> checkbox above to enter and read values in signed two&rsquo;s complement; the carry/overflow flags work the same way underneath.</p>
+  </section>
 </div>
 
 <script>
@@ -79,7 +135,7 @@
   cv.width=W*dpr; cv.height=H*dpr; ctx.scale(dpr,dpr);
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-  let width=8, op='add', A=23, B=46;
+  let width=8, op='add', A=23, B=46, signedMode=false;
   let aBits=[], bBits=[], rBits=[], carry=[], showB=true, bLabel='B', sym='+';
   let carryOut=0, overflow=0, resVal=0;
   let p=0, running=true, stepOnce=false, speed=4, acc=0;
@@ -87,10 +143,20 @@
   const mask=()=> (1<<width)-1;
   const bitsOf=(v)=>{ const o=[]; for(let i=0;i<width;i++) o.push((v>>i)&1); return o; };
   const signed=(v)=> v>=(1<<(width-1)) ? v-(1<<width) : v;
+  function parseToBits(id){
+    const raw=parseInt(document.getElementById(id).value,10)||0;
+    // accept negative numbers in signed mode (encode as two's complement)
+    const v = raw<0 ? raw + (1<<width) : raw;
+    return v & mask();
+  }
+  function setInputDisplay(id, bitVal){
+    const v = signedMode ? signed(bitVal) : bitVal;
+    document.getElementById(id).value = v;
+  }
 
   function compute(){
-    A=(parseInt(document.getElementById('a').value,10)||0)&mask();
-    B=(parseInt(document.getElementById('b').value,10)||0)&mask();
+    A=parseToBits('a');
+    B=parseToBits('b');
     aBits=bitsOf(A); carry=new Array(width+1).fill(0);
     showB=true; sym='+'; bLabel='B'; carryOut=0; overflow=0;
     if(op==='add'||op==='sub'){
@@ -116,14 +182,21 @@
     p=0; running=true; document.getElementById('play').textContent='⏸ Pause';
     updateReadout();
   }
+  function fmt(v){ return signedMode ? (signed(v)+' / '+v+' unsigned') : (v+' / '+signed(v)+' signed'); }
   function updateReadout(){
-    document.getElementById('ra').textContent=A+' / '+signed(A);
-    document.getElementById('rb').textContent= showB? (B+' / '+signed(B)) : '—';
-    document.getElementById('rr').textContent=resVal+' / '+signed(resVal);
+    document.getElementById('ra').textContent=fmt(A);
+    document.getElementById('rb').textContent= showB ? fmt(B) : '—';
+    document.getElementById('rr').textContent=fmt(resVal);
     const fc=document.getElementById('fc'), fo=document.getElementById('fo');
     const carryRel=(op==='add'||op==='sub');
     fc.textContent='carry '+(carryRel?carryOut:0); fc.className='flag '+((carryRel&&carryOut)?'on':'off');
     fo.textContent='overflow '+(carryRel?overflow:0); fo.className='flag '+((carryRel&&overflow)?'on':'off');
+  }
+  function randomAB(){
+    const m=(1<<width);
+    const av=Math.floor(Math.random()*m), bv=Math.floor(Math.random()*m);
+    setInputDisplay('a', av); setInputDisplay('b', bv);
+    compute();
   }
 
   // layout
@@ -211,6 +284,13 @@
   ['a','b','op','width'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{
     op=document.getElementById('op').value; width=parseInt(document.getElementById('width').value,10); compute();
   }));
+  document.getElementById('rand').addEventListener('click', randomAB);
+  document.getElementById('signed').addEventListener('change',e=>{
+    signedMode = e.target.checked;
+    // re-display A and B in the new representation (bit patterns are unchanged)
+    setInputDisplay('a', A); setInputDisplay('b', B);
+    updateReadout();
+  });
 
   compute();
   requestAnimationFrame(frame);
