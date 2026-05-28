@@ -41,6 +41,17 @@
   #swatch{width:46px;height:46px;border-radius:10px;border:1px solid var(--edge);
     background:#222;transition:background .25s,box-shadow .25s;flex:0 0 auto}
   footer{margin-top:26px;color:#5f7099;font-size:12px;line-height:1.6}
+  .explain{margin-top:36px;border-top:1px solid var(--edge);padding-top:8px}
+  .explain h2{font-size:13px;letter-spacing:.18em;color:#9fb4d8;text-transform:uppercase;margin:28px 0 10px}
+  .explain h2:first-of-type{margin-top:18px}
+  .explain p{color:#9fb4d8;line-height:1.7;font-size:13.5px;margin:8px 0}
+  .explain code{color:#bdd4ff;background:#0a0f1c;padding:1px 7px;border-radius:4px;font-size:12.5px}
+  .explain ul{color:#9fb4d8;line-height:1.75;font-size:13.5px;padding-left:20px}
+  .explain b{color:#cfe6ff}
+  .explain .accent{color:var(--cyan)} .explain .accent2{color:var(--green)}
+  .scale{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .scale span{background:#0a0f1c;border:1px solid var(--edge);border-radius:6px;padding:4px 8px;font-size:11px;color:#bff8ff}
+  #ascii{font-size:24px;color:var(--green)}
 </style>
 </head>
 <body>
@@ -74,12 +85,69 @@
     <div class="card"><div class="k">Hex</div><div class="v" id="hex">0x00</div></div>
     <div class="card"><div class="k">Note</div><div class="v" id="note">–</div></div>
     <div class="card swatch-card"><div id="swatch"></div><div><div class="k">Colour</div><div class="v" id="hsl" style="font-size:14px">hsl</div></div></div>
+    <div class="card"><div class="k">ASCII character</div><div class="v" id="ascii">–</div></div>
   </div>
 
-  <footer>
-    8 logic gates (AND / OR / XOR / NAND) each emit one bit. The bits stack into a byte (0–255),
-    mapped to a hue and a pentatonic note. Combinational logic — no clock state, just signal propagation.
-  </footer>
+  <section class="explain">
+    <h2>What is happening on screen?</h2>
+    <p>A power source sends pulses of electricity along the wires. They flow into <b>8 logic gates</b> and out the other side as <b>8 bits</b> — a single <span class="accent">byte</span>. That byte is then translated into a <b class="accent">colour</b>, a <b class="accent2">musical note</b>, and an <b style="color:var(--green)">ASCII character</b>. Each cycle the inputs change, so the byte — and everything derived from it — changes too.</p>
+
+    <h2>1 · the circuit</h2>
+    <ul>
+      <li><b>4 input bits</b> <code>I0 I1 I2 I3</code> on the left. They are randomised at the start of each cycle. In <b>Manual mode</b> you click them to fix the value.</li>
+      <li><b>8 gates</b> (mix of AND, OR, XOR, NAND). Each gate is wired to two of the four inputs and emits one bit of the output byte. The top gate emits bit&nbsp;7 (most-significant), the bottom emits bit&nbsp;0 (least-significant).</li>
+      <li>The 8 output bits stacked together = the <b>byte</b>, a whole number from <code>0</code> to <code>255</code>.</li>
+    </ul>
+
+    <h2>2 · the cycle (≈ 3.4 s)</h2>
+    <ul>
+      <li><b>Phase 1 — inputs flow</b>: glowing pulses travel from the source to the gates. Bright cyan = a <code>1</code>; dim grey = a <code>0</code>.</li>
+      <li><b>Phase 2 — gates evaluate</b>: each gate's box lights up green if its output is <code>1</code>, stays dim if <code>0</code>.</li>
+      <li><b>Phase 3 — outputs flow</b>: pulses travel from each gate that produced a <code>1</code> to its output LED.</li>
+      <li><b>Phase 4 — reveal</b>: the LEDs latch, the colour swatch updates and the note plays.</li>
+    </ul>
+
+    <h2>3 · byte → colour</h2>
+    <p>The byte (0–255) is treated as a position on the <b>colour wheel</b>. The wheel runs 0°–360°, so we map the byte onto it:</p>
+    <p><code>hue = byte ÷ 256 × 360°</code> &nbsp;&rarr;&nbsp; <code>hsl(hue, 85%, 55%)</code></p>
+    <ul>
+      <li><code>0</code> → red (0°)</li>
+      <li><code>64</code> → yellow-green (~90°)</li>
+      <li><code>128</code> → cyan (~180°)</li>
+      <li><code>192</code> → purple (~270°)</li>
+      <li><code>255</code> → almost back to red (~358°)</li>
+    </ul>
+
+    <h2>4 · byte → sound</h2>
+    <p>Random byte values would sound dissonant, so we snap the byte to a <b>pentatonic scale</b> — a 5-note pattern (C, D, E, G, A) repeated across three octaves, giving 15 musical notes:</p>
+    <div class="scale">
+      <span>C3</span><span>D3</span><span>E3</span><span>G3</span><span>A3</span>
+      <span>C4</span><span>D4</span><span>E4</span><span>G4</span><span>A4</span>
+      <span>C5</span><span>D5</span><span>E5</span><span>G5</span><span>A5</span>
+    </div>
+    <p><code>index = floor(byte ÷ 256 × 15)</code> &nbsp;&rarr;&nbsp; the frequency of that note is played for ~0.5&nbsp;s on a triangle-wave oscillator (Web Audio API).</p>
+    <p>So low bytes give low notes (C3 = 130.81 Hz) and high bytes give high notes (A5 = 880 Hz).</p>
+
+    <h2>5 · byte → ASCII character</h2>
+    <p>Computers store text as numbers, using the <b>ASCII</b> table (American Standard Code for Information Interchange). Each character has a numeric code:</p>
+    <ul>
+      <li><code>0–31</code> &amp; <code>127</code> — <b>control codes</b>, not printable on screen (things like <code>NUL</code>, <code>BEL</code>, <code>TAB</code>, <code>LF</code>, <code>DEL</code>).</li>
+      <li><code>32</code> — space</li>
+      <li><code>48–57</code> — the digits <code>0</code>–<code>9</code></li>
+      <li><code>65–90</code> — uppercase <code>A</code>–<code>Z</code></li>
+      <li><code>97–122</code> — lowercase <code>a</code>–<code>z</code></li>
+      <li><code>128–255</code> — beyond standard 7-bit ASCII (extended / Latin-1 territory)</li>
+    </ul>
+    <p>So the same byte that gives a colour and a note <i>also</i> stands for a character. Try Manual mode and aim for byte <code>65</code> — you'll see the ASCII card light up with <code>'A'</code>.</p>
+
+    <h2>why these choices?</h2>
+    <ul>
+      <li><b>Pentatonic notes</b> never clash, so random bits sound pleasant.</li>
+      <li><b>HSL hue</b> maps a single number cleanly onto a 1-D rainbow — no awkward splitting of 8 bits into R/G/B.</li>
+      <li><b>ASCII</b> is the historical standard for text — knowing the byte for <code>'A'</code> is 65 is part of every CS course.</li>
+    </ul>
+    <p style="color:#7d93bd;margin-top:18px">The takeaway: inside a computer everything really is just bits. Pick a mapping, and a number becomes a colour, a sound, or a letter.</p>
+  </section>
 </div>
 
 <script>
@@ -153,12 +221,22 @@
 
   // ---- readout ----
   function hueColor(v){ return 'hsl('+Math.round(v/256*360)+',85%,55%)'; }
+  const CTRL=['NUL','SOH','STX','ETX','EOT','ENQ','ACK','BEL','BS','TAB','LF','VT','FF','CR','SO','SI',
+              'DLE','DC1','DC2','DC3','DC4','NAK','SYN','ETB','CAN','EM','SUB','ESC','FS','GS','RS','US'];
+  function asciiChar(v){
+    if(v<32) return '(ctrl: '+CTRL[v]+')';
+    if(v===32) return "'␣'  (space)";
+    if(v===127) return '(ctrl: DEL)';
+    if(v<128) return "'"+String.fromCharCode(v)+"'";
+    return '(>127, non-ASCII)';
+  }
   function updateReadout(){
     document.getElementById('inbits').textContent=inputs.map(i=>i.v).join(' ');
     document.getElementById('bin').textContent=byteVal.toString(2).padStart(8,'0');
     document.getElementById('dec').textContent=byteVal;
     document.getElementById('hex').textContent='0x'+byteVal.toString(16).toUpperCase().padStart(2,'0');
     document.getElementById('note').textContent=NOTES[noteIndex()][0];
+    document.getElementById('ascii').textContent=asciiChar(byteVal);
     const c=hueColor(byteVal);
     const sw=document.getElementById('swatch');
     sw.style.background=c; sw.style.boxShadow='0 0 26px '+c;
