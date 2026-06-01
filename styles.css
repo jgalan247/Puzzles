@@ -135,6 +135,13 @@ body {
 }
 .wl-reset:hover { color: #b00020; border-color: #b00020; }
 
+/* footer */
+.wl-footer {
+  text-align: center; color: #888; font-size: .85em;
+  padding: 22px 14px 28px; margin-top: 18px;
+  border-top: 1px solid #eee;
+}
+
 /* toast */
 .wl-toast {
   position: fixed; left: 50%; top: 18px;
