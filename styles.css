@@ -90,6 +90,21 @@ body {
 }
 .wl-subject-select:focus { outline: 2px solid var(--wl-accent); outline-offset: 1px; }
 
+/* direction toggle (MFL practice only) */
+.wl-direction-row {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin: 4px 0 6px; flex-wrap: wrap;
+}
+.wl-direction-label { font-weight: 700; color: #333; font-size: .85em; }
+.wl-direction-toggle {
+  display: inline-flex; border: 1px solid var(--wl-accent); border-radius: 999px; overflow: hidden;
+}
+.wl-dir {
+  border: 0; background: #fff; color: var(--wl-accent); font-weight: 600;
+  padding: 5px 14px; cursor: pointer; font-size: .85em;
+}
+.wl-dir.active { background: var(--wl-accent); color: #fff; }
+
 /* mode toggle */
 .wl-modes {
   display: flex; justify-content: center; gap: 0; margin: 4px 0 6px;

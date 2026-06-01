@@ -81,6 +81,63 @@
         { term: "SOLILOQUY",     clue: "A speech in which a character speaks their thoughts aloud while alone." },
         { term: "ANECDOTE",      clue: "A short personal story told to illustrate a point." }
       ]
+    },
+    {
+      id: "french", name: "French", kind: "mfl", language: "French", pairs: [
+        { en: "HOUSE",   target: "MAISON" },
+        { en: "BOOK",    target: "LIVRE" },
+        { en: "SCHOOL",  target: "ECOLE" },
+        { en: "MOON",    target: "LUNE" },
+        { en: "STAR",    target: "ETOILE" },
+        { en: "BREAD",   target: "PAIN" },
+        { en: "WATER",   target: "EAU" },
+        { en: "FRIEND",  target: "AMI" },
+        { en: "TEACHER", target: "PROFESSEUR" },
+        { en: "WINDOW",  target: "FENETRE" },
+        { en: "APPLE",   target: "POMME" },
+        { en: "CHEESE",  target: "FROMAGE" },
+        { en: "MONDAY",  target: "LUNDI" },
+        { en: "MORNING", target: "MATIN" },
+        { en: "FLOWER",  target: "FLEUR" }
+      ]
+    },
+    {
+      id: "spanish", name: "Spanish", kind: "mfl", language: "Spanish", pairs: [
+        { en: "HOUSE",   target: "CASA" },
+        { en: "BOOK",    target: "LIBRO" },
+        { en: "SCHOOL",  target: "ESCUELA" },
+        { en: "MOON",    target: "LUNA" },
+        { en: "STAR",    target: "ESTRELLA" },
+        { en: "BREAD",   target: "PAN" },
+        { en: "WATER",   target: "AGUA" },
+        { en: "FRIEND",  target: "AMIGO" },
+        { en: "TEACHER", target: "PROFESOR" },
+        { en: "WINDOW",  target: "VENTANA" },
+        { en: "APPLE",   target: "MANZANA" },
+        { en: "CHEESE",  target: "QUESO" },
+        { en: "MONDAY",  target: "LUNES" },
+        { en: "MORNING", target: "MANANA" },
+        { en: "FLOWER",  target: "FLOR" }
+      ]
+    },
+    {
+      id: "portuguese", name: "Portuguese", kind: "mfl", language: "Portuguese", pairs: [
+        { en: "HOUSE",   target: "CASA" },
+        { en: "BOOK",    target: "LIVRO" },
+        { en: "SCHOOL",  target: "ESCOLA" },
+        { en: "MOON",    target: "LUA" },
+        { en: "STAR",    target: "ESTRELA" },
+        { en: "BREAD",   target: "PAO" },
+        { en: "WATER",   target: "AGUA" },
+        { en: "FRIEND",  target: "AMIGO" },
+        { en: "TEACHER", target: "PROFESSOR" },
+        { en: "WINDOW",  target: "JANELA" },
+        { en: "APPLE",   target: "MACA" },
+        { en: "CHEESE",  target: "QUEIJO" },
+        { en: "MONDAY",  target: "SEGUNDA" },
+        { en: "MORNING", target: "MANHA" },
+        { en: "FLOWER",  target: "FLOR" }
+      ]
     }
   ];
 
@@ -125,7 +182,35 @@
     for (var i = 0; i < SUBJECTS.length; i++) if (SUBJECTS[i].id === id) return SUBJECTS[i];
     return SUBJECTS[0];
   }
-  function getTerms() { return getSubject(subject).terms; }
+  function ensurePracticeDirection(id) {
+    if (!stats.practiceDirection) stats.practiceDirection = {};
+    if (typeof stats.practiceDirection[id] !== "string") stats.practiceDirection[id] = "to-target";
+  }
+  function getPracticeDirection(id) {
+    ensurePracticeDirection(id);
+    return stats.practiceDirection[id];
+  }
+  function dailyDirection() {
+    var p = todayKey().split("-").map(Number);
+    var days = Math.floor(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000);
+    return (days % 2 === 0) ? "to-target" : "to-en";
+  }
+  function effectiveDirection(sub) {
+    if (!sub || sub.kind !== "mfl") return null;
+    return (mode === "daily") ? dailyDirection() : getPracticeDirection(sub.id);
+  }
+  function termsFor(sub) {
+    if (sub.kind === "mfl") {
+      var dir = effectiveDirection(sub);
+      return sub.pairs.map(function (p) {
+        return (dir === "to-target")
+          ? { term: p.target, clue: "Translate to " + sub.language + ": " + p.en }
+          : { term: p.en,     clue: "Translate to English: " + p.target };
+      });
+    }
+    return sub.terms;
+  }
+  function getTerms() { return termsFor(getSubject(subject)); }
   function maxDailyStreak(s) {
     var m = 0;
     if (s.daily) {
@@ -160,7 +245,8 @@
   function freshStats() {
     return {
       played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [],
-      daily: {}, subjectWins: {}, mode: "daily", subject: SUBJECTS[0].id
+      daily: {}, subjectWins: {}, practiceDirection: {},
+      mode: "daily", subject: SUBJECTS[0].id
     };
   }
   function ensureDaily(id) {
@@ -203,6 +289,13 @@
         if (o.subjectWins && typeof o.subjectWins === "object") {
           Object.keys(o.subjectWins).forEach(function (k) {
             if (typeof o.subjectWins[k] === "number") s.subjectWins[k] = o.subjectWins[k];
+          });
+        }
+        if (o.practiceDirection && typeof o.practiceDirection === "object") {
+          Object.keys(o.practiceDirection).forEach(function (k) {
+            if (o.practiceDirection[k] === "to-target" || o.practiceDirection[k] === "to-en") {
+              s.practiceDirection[k] = o.practiceDirection[k];
+            }
           });
         }
       }
@@ -252,11 +345,47 @@
     document.getElementById("wl-mode-daily").classList.toggle("active", mode === "daily");
     document.getElementById("wl-mode-practice").classList.toggle("active", mode === "practice");
     document.getElementById("wl-new").style.display = (mode === "practice") ? "" : "none";
-    var subName = getSubject(subject).name;
+    var sub = getSubject(subject);
     var note = document.getElementById("wl-mode-note");
-    note.textContent = (mode === "daily")
-      ? subName + " · daily for " + todayKey() + " — one word a day per subject."
-      : subName + " · practice — unlimited random words.";
+    var dirText = "";
+    if (sub.kind === "mfl") {
+      var d = effectiveDirection(sub);
+      dirText = (d === "to-target") ? "English → " + sub.language : sub.language + " → English";
+    }
+    if (mode === "daily") {
+      note.textContent = sub.name + " · daily for " + todayKey() +
+        (sub.kind === "mfl" ? " — today: " + dirText : " — one word a day per subject.");
+    } else {
+      note.textContent = sub.name + " · practice" +
+        (sub.kind === "mfl" ? " — " + dirText : " — unlimited random words.");
+    }
+    updateDirectionUI();
+  }
+
+  function updateDirectionUI() {
+    var sub = getSubject(subject);
+    var row = document.getElementById("wl-direction-row");
+    if (sub.kind !== "mfl" || mode !== "practice") { row.hidden = true; return; }
+    row.hidden = false;
+    var dir = getPracticeDirection(sub.id);
+    var btnT = document.getElementById("wl-dir-to-target");
+    var btnE = document.getElementById("wl-dir-to-en");
+    btnT.textContent = "English → " + sub.language;
+    btnE.textContent = sub.language + " → English";
+    btnT.classList.toggle("active", dir === "to-target");
+    btnE.classList.toggle("active", dir === "to-en");
+  }
+
+  function setDirection(dir) {
+    var sub = getSubject(subject);
+    if (sub.kind !== "mfl" || mode !== "practice") return;
+    ensurePracticeDirection(sub.id);
+    if (stats.practiceDirection[sub.id] === dir) return;
+    maybeAbandon();
+    stats.practiceDirection[sub.id] = dir;
+    saveStats();
+    updateDirectionUI();
+    startGame();
   }
 
   function populateSubjects() {
@@ -549,6 +678,8 @@
   document.getElementById("wl-mode-daily").addEventListener("click", function () { switchMode("daily"); });
   document.getElementById("wl-mode-practice").addEventListener("click", function () { switchMode("practice"); });
   document.getElementById("wl-subject-select").addEventListener("change", function (e) { switchSubject(e.target.value); });
+  document.getElementById("wl-dir-to-target").addEventListener("click", function () { setDirection("to-target"); });
+  document.getElementById("wl-dir-to-en").addEventListener("click", function () { setDirection("to-en"); });
 
   document.getElementById("wl-new").addEventListener("click", function () {
     if (mode !== "practice") return;

@@ -1,4 +1,4 @@
-const CACHE = "wordlet-v2";
+const CACHE = "wordlet-v3";
 const ASSETS = [
   "./",
   "./index.html",

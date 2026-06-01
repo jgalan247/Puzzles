@@ -16,8 +16,14 @@ Installs as a **PWA** and works fully offline after first load.
 
 ## Subjects
 
-A dropdown at the top picks the subject: **Computer Science · Business · Art · English**.
-Each subject has its own term pool and its own independent **daily puzzle and day-streak**, so a student can do all four dailies in a session.
+A dropdown at the top picks the subject: **Computer Science · Business · Art · English · French · Spanish · Portuguese**.
+Each subject has its own term pool and its own independent **daily puzzle and day-streak**, so a student can do all of the dailies in a session.
+
+For the **MFL** subjects (French, Spanish, Portuguese), play is bidirectional:
+- **English → Target**: clue shows the English word; student types the foreign word.
+- **Target → English**: clue shows the foreign word; student types the English word.
+
+In **Daily** mode the direction is fixed by the date (alternating, same for everyone). In **Practice** mode a direction toggle appears so the student can choose. Accents are stripped from answers (e.g. FENÊTRE → FENETRE, MAÑANA → MANANA) so the standard A–Z keyboard works.
 
 ## Modes
 
