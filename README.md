@@ -1,44 +1,70 @@
-# Hosting Parsons on Github Template
-This repo is a template to help you quickly and easily host Parson's problems on GitHub.
+# Wordlet
 
-You can use [Codio's graphical Parson's problems generator](https://codio.github.io/parsons-puzzle-ui/dist/) to create the Parson's problems and paste them into this template. [Visit the other repo's main page for help on using the generator.](https://codio.github.io/parsons-puzzle-ui/)
+A Wordle-style vocabulary game for computer science.
+Read the **definition**, then guess the **term** letter-by-letter with green/yellow/grey feedback.
 
-## How to host your own Parson's Problems
+## How to play
 
-1. Create a Github account (if you don't have one already). A free account works great for this!
+- A computer-science definition is shown at the top of the page.
+- Type your guess using the on-screen keyboard or your physical keyboard.
+- Tiles colour after each submitted guess:
+  - **green** — right letter, right spot
+  - **yellow** — right letter, wrong spot
+  - **grey** — letter not in the word
+- You have 6 tries. The board sizes itself to the answer's length, so 5-letter and 9-letter terms both work.
 
-1. Fork this repo using the "Fork" button 
+## Modes
 
-    ![Fork Button](https://sammyk.s3.amazonaws.com/blog/images/2014-05-28/fork.png)
-    
-1. In **your fork** (it should have your user name after the `github.com/` in the URL bar) click on "Settings":
+- **Daily** — One deterministic puzzle per day; the same word for everyone. Locked after you finish; resumes on reload. Builds a consecutive-day streak.
+- **Practice** — Unlimited random words for revision. The "New word" button gives you another puzzle at any time.
 
-    ![Settings Tab](https://pages.github.com/images/repo-settings@2x.png)
-    
-1. Set the GitHub Pages Source to Master branch using the drop down:
+## Scoring, streaks and badges
 
-    ![Set GitHub Pages Source](https://pages.github.com/images/source-setting@2x.png)
-    
-### Test your repo
+- Points per win: `(tries_left + 1) × 10 + streak × 5`. A one-guess win on a 1-streak earns 65; a sixth-guess win earns 15.
+- Wins extend your streak; a loss or "Give up" resets it.
+- Nine unlockable badges: First Win · Ace (1 guess) · Sharp (≤2) · On Fire (3-streak) · Unstoppable (5) · Legendary (10) · Scholar (10 wins) · Regular (7-day daily streak) · High Scorer (500 pts).
+- All progress is saved to `localStorage` on the player's device.
 
-1. To check that your repo is now setup correctly, return to the "Code" tab on the far left (you can get there by clicking on the repo name at the top too). 
+## Running locally
 
-1. Click on the environment button with the rocketship icon on the right-side of the page
+It's plain static HTML/CSS/JS — no build step. Just open `index.html` in a browser.
 
-    ![Click github-pages link on the right-side of the page](https://raw.githubusercontent.com/codio-content/hosting-parsons-on-github-template/master/Environments.png)
+## Deploying on GitHub Pages
 
-1. Click on the "View Deployment" button - the one at the top is the most recent.
+Push this repo to GitHub, then in **Settings → Pages** pick the branch to serve from. The site will be served at:
 
-    ![Click on the "View Deployment" button](https://raw.githubusercontent.com/codio-content/hosting-parsons-on-github-template/master/Deployments.png)
-    
-## How to Add Generated Parson's Problems
+```
+https://<user-or-org>.github.io/<repo>/
+```
 
-1. Use [Codio's graphical Parson's problems generator](https://codio.github.io/parsons-puzzle-ui/dist/) to create a Parson's problem
+A `.nojekyll` file is included so Pages skips Jekyll and serves files as-is.
 
-1. Click EXPORT in the top left
+## Adding or editing terms
 
-1. Click Switch to Code
+Edit the `TERMS` array at the top of `script.js`:
 
-1. (optional) If you are hosting multiple parsons problems on the same page (in the same markdown) then add a unique pre-fix in the textbox at the top and press enter.
+```js
+var TERMS = [
+  { term: "ALGORITHM", clue: "A precise, step-by-step set of instructions for solving a problem." },
+  { term: "VARIABLE",  clue: "A named storage location that holds a value which can change." },
+  // ...
+];
+```
 
-1. Copy the code into index.markdown
+Rules for terms:
+- Single word, letters A–Z only (no spaces, digits or punctuation).
+- Any length — the board adapts automatically.
+- The clue is plain text shown above the board.
+
+## File structure
+
+```
+index.html    Page markup
+styles.css    All styles
+script.js     Game logic + term list (edit TERMS to change content)
+.nojekyll     Tells GitHub Pages to serve files as-is
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
