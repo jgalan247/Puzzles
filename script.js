@@ -1,44 +1,108 @@
 (function () {
-  // --- Content: edit this list to add or change CS terms (single words, A-Z) ---
-  var TERMS = [
-    { term: "ALGORITHM",  clue: "A precise, step-by-step set of instructions for solving a problem." },
-    { term: "VARIABLE",   clue: "A named storage location that holds a value which can change." },
-    { term: "FUNCTION",   clue: "A reusable, named block of code that performs a task and may return a value." },
-    { term: "BOOLEAN",    clue: "A data type with only two possible values: true or false." },
-    { term: "COMPILER",   clue: "A program that translates source code into machine code before it runs." },
-    { term: "ARRAY",      clue: "An ordered collection of elements stored under one name and accessed by index." },
-    { term: "POINTER",    clue: "A variable that stores the memory address of another value." },
-    { term: "RECURSION",  clue: "When a function calls itself to solve smaller versions of a problem." },
-    { term: "BINARY",     clue: "The base-2 number system that uses only the digits 0 and 1." },
-    { term: "SYNTAX",     clue: "The set of rules that defines how programs in a language must be written." },
-    { term: "KERNEL",     clue: "The core part of an operating system that manages hardware and resources." },
-    { term: "CACHE",      clue: "A small, fast store of recently used data that speeds up future access." },
-    { term: "STACK",      clue: "A last-in, first-out (LIFO) data structure." },
-    { term: "QUEUE",      clue: "A first-in, first-out (FIFO) data structure." },
-    { term: "ITERATION",  clue: "Repeating a block of code, for example with a loop." },
-    { term: "ENCRYPTION", clue: "Encoding data so that only authorised parties can read it." },
-    { term: "DATABASE",   clue: "An organised collection of data that can be queried and updated." },
-    { term: "PROTOCOL",   clue: "An agreed set of rules for communication between devices." },
-    { term: "BANDWIDTH",  clue: "The maximum rate of data transfer across a network connection." },
-    { term: "DEBUGGING",  clue: "The process of finding and fixing errors in a program." }
+  // --- Content: edit terms per subject (single words, A-Z only) ---
+  var SUBJECTS = [
+    {
+      id: "cs", name: "Computer Science", terms: [
+        { term: "ALGORITHM",  clue: "A precise, step-by-step set of instructions for solving a problem." },
+        { term: "VARIABLE",   clue: "A named storage location that holds a value which can change." },
+        { term: "FUNCTION",   clue: "A reusable, named block of code that performs a task and may return a value." },
+        { term: "BOOLEAN",    clue: "A data type with only two possible values: true or false." },
+        { term: "COMPILER",   clue: "A program that translates source code into machine code before it runs." },
+        { term: "ARRAY",      clue: "An ordered collection of elements stored under one name and accessed by index." },
+        { term: "POINTER",    clue: "A variable that stores the memory address of another value." },
+        { term: "RECURSION",  clue: "When a function calls itself to solve smaller versions of a problem." },
+        { term: "BINARY",     clue: "The base-2 number system that uses only the digits 0 and 1." },
+        { term: "SYNTAX",     clue: "The set of rules that defines how programs in a language must be written." },
+        { term: "KERNEL",     clue: "The core part of an operating system that manages hardware and resources." },
+        { term: "CACHE",      clue: "A small, fast store of recently used data that speeds up future access." },
+        { term: "STACK",      clue: "A last-in, first-out (LIFO) data structure." },
+        { term: "QUEUE",      clue: "A first-in, first-out (FIFO) data structure." },
+        { term: "ITERATION",  clue: "Repeating a block of code, for example with a loop." },
+        { term: "ENCRYPTION", clue: "Encoding data so that only authorised parties can read it." },
+        { term: "DATABASE",   clue: "An organised collection of data that can be queried and updated." },
+        { term: "PROTOCOL",   clue: "An agreed set of rules for communication between devices." },
+        { term: "BANDWIDTH",  clue: "The maximum rate of data transfer across a network connection." },
+        { term: "DEBUGGING",  clue: "The process of finding and fixing errors in a program." }
+      ]
+    },
+    {
+      id: "business", name: "Business", terms: [
+        { term: "REVENUE",     clue: "The total income a business earns from sales before any costs are deducted." },
+        { term: "PROFIT",      clue: "What is left after expenses are subtracted from revenue." },
+        { term: "BUDGET",      clue: "A financial plan setting out expected income and spending." },
+        { term: "BRAND",       clue: "The identity, name and image that distinguishes a company's products." },
+        { term: "ASSETS",      clue: "Things a business owns that have economic value." },
+        { term: "EQUITY",      clue: "The owners' share of value in a company after debts." },
+        { term: "INVOICE",     clue: "A document that requests payment for goods or services supplied." },
+        { term: "DIVIDEND",    clue: "A share of company profits paid to shareholders." },
+        { term: "MARKETING",   clue: "Activities a business uses to promote and sell its products." },
+        { term: "INFLATION",   clue: "A general rise in the level of prices over time." },
+        { term: "MONOPOLY",    clue: "A market controlled by a single supplier." },
+        { term: "OVERHEAD",    clue: "Ongoing business costs not directly tied to making a product, like rent." },
+        { term: "FRANCHISE",   clue: "An arrangement where someone runs a local business under an established brand." },
+        { term: "LIQUIDITY",   clue: "How easily an asset can be turned into cash." },
+        { term: "MERGER",      clue: "When two companies combine to form a single new one." }
+      ]
+    },
+    {
+      id: "art", name: "Art", terms: [
+        { term: "PALETTE",     clue: "The range of colours an artist chooses to work with." },
+        { term: "CANVAS",      clue: "A fabric surface stretched on a frame, used for painting." },
+        { term: "SCULPTURE",   clue: "A three-dimensional work of art that is carved, modelled or assembled." },
+        { term: "PORTRAIT",    clue: "An artistic representation of a person." },
+        { term: "LANDSCAPE",   clue: "A picture depicting natural scenery such as fields, mountains or coast." },
+        { term: "COLLAGE",     clue: "Art made by gluing different materials onto a surface." },
+        { term: "CONTRAST",    clue: "The difference between light and dark areas or opposing colours." },
+        { term: "TEXTURE",     clue: "The surface feel or appearance of a work of art." },
+        { term: "PIGMENT",     clue: "A coloured substance that gives paint its hue." },
+        { term: "MOSAIC",      clue: "A picture made from small coloured pieces of glass, stone or tile." },
+        { term: "IMPASTO",     clue: "A painting technique using paint applied so thickly it stands out from the surface." },
+        { term: "SYMMETRY",    clue: "A balanced arrangement where parts mirror each other." },
+        { term: "COMPOSITION", clue: "The way elements are arranged within a work of art." },
+        { term: "PERSPECTIVE", clue: "A technique for creating the illusion of depth on a flat surface." },
+        { term: "ENGRAVING",   clue: "An image made by cutting lines into a hard surface and printing from it." }
+      ]
+    },
+    {
+      id: "english", name: "English", terms: [
+        { term: "METAPHOR",      clue: "Describing one thing as if it were another, without using 'like' or 'as'." },
+        { term: "SIMILE",        clue: "A comparison between two things using 'like' or 'as'." },
+        { term: "ALLITERATION",  clue: "Repetition of the same initial consonant sound across nearby words." },
+        { term: "PROTAGONIST",   clue: "The main character of a story." },
+        { term: "ANTAGONIST",    clue: "A character who opposes the main character." },
+        { term: "HYPERBOLE",     clue: "Deliberate exaggeration used for effect." },
+        { term: "SYMBOLISM",     clue: "Using objects or images to represent ideas or qualities." },
+        { term: "NARRATOR",      clue: "The voice that tells the story." },
+        { term: "DIALOGUE",      clue: "Spoken conversation between characters in a text." },
+        { term: "IMAGERY",       clue: "Descriptive language that creates pictures in the reader's mind." },
+        { term: "IRONY",         clue: "Meaning that is the opposite of, or different from, what is said." },
+        { term: "STANZA",        clue: "A group of lines that form a unit within a poem." },
+        { term: "ALLEGORY",      clue: "A story whose characters and events stand for a hidden, often moral, meaning." },
+        { term: "SOLILOQUY",     clue: "A speech in which a character speaks their thoughts aloud while alone." },
+        { term: "ANECDOTE",      clue: "A short personal story told to illustrate a point." }
+      ]
+    }
   ];
 
   // --- Badges: unlocked when test() first returns true after a game ends ---
   var BADGES = [
-    { id: "first_win", icon: "🎉", name: "First Win",    desc: "Win your first game",        test: function (s, c) { return c.won && s.wins >= 1; } },
-    { id: "ace",       icon: "🎯", name: "Ace",          desc: "Solve in a single guess",    test: function (s, c) { return c.won && c.guesses === 1; } },
+    { id: "first_win", icon: "🎉", name: "First Win",    desc: "Win your first game",         test: function (s, c) { return c.won && s.wins >= 1; } },
+    { id: "ace",       icon: "🎯", name: "Ace",          desc: "Solve in a single guess",     test: function (s, c) { return c.won && c.guesses === 1; } },
     { id: "sharp",     icon: "⚡", name: "Sharp",        desc: "Solve in 2 guesses or fewer", test: function (s, c) { return c.won && c.guesses <= 2; } },
-    { id: "streak3",   icon: "🔥", name: "On Fire",      desc: "Reach a 3-win streak",       test: function (s) { return s.streak >= 3; } },
-    { id: "streak5",   icon: "🚀", name: "Unstoppable",  desc: "Reach a 5-win streak",       test: function (s) { return s.streak >= 5; } },
-    { id: "streak10",  icon: "👑", name: "Legendary",    desc: "Reach a 10-win streak",      test: function (s) { return s.streak >= 10; } },
-    { id: "scholar",   icon: "🎓", name: "Scholar",      desc: "Win 10 games in total",      test: function (s) { return s.wins >= 10; } },
-    { id: "daily7",    icon: "📅", name: "Regular",      desc: "Solve the daily 7 days in a row", test: function (s) { return s.dailyStreak >= 7; } },
-    { id: "highscore", icon: "💎", name: "High Scorer",  desc: "Reach 500 points",           test: function (s) { return s.score >= 500; } }
+    { id: "streak3",   icon: "🔥", name: "On Fire",      desc: "Reach a 3-win streak",        test: function (s) { return s.streak >= 3; } },
+    { id: "streak5",   icon: "🚀", name: "Unstoppable",  desc: "Reach a 5-win streak",        test: function (s) { return s.streak >= 5; } },
+    { id: "streak10",  icon: "👑", name: "Legendary",    desc: "Reach a 10-win streak",       test: function (s) { return s.streak >= 10; } },
+    { id: "scholar",   icon: "🎓", name: "Scholar",      desc: "Win 10 games in total",       test: function (s) { return s.wins >= 10; } },
+    { id: "daily7",    icon: "📅", name: "Regular",      desc: "Solve any subject's daily 7 days in a row", test: function (s) { return maxDailyStreak(s) >= 7; } },
+    { id: "polyglot",  icon: "🌍", name: "Polyglot",     desc: "Win at least once in every subject",  test: function (s) {
+        return SUBJECTS.every(function (sub) { return (s.subjectWins[sub.id] || 0) > 0; });
+      } },
+    { id: "highscore", icon: "💎", name: "High Scorer",  desc: "Reach 500 points",            test: function (s) { return s.score >= 500; } }
   ];
 
   var MAX_GUESSES = 6;
   var KEY_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ENTER ZXCVBNM DEL"];
-  var STORE_KEY = "wordlet.stats.v2";
+  var STORE_KEY = "wordlet.stats.v3";
 
   var board = document.getElementById("wl-board");
   var keyboard = document.getElementById("wl-keyboard");
@@ -46,14 +110,30 @@
   var messageEl = document.getElementById("wl-message");
 
   var mode = "daily";
+  var subject = "cs";
   var answer = "";
   var rowIndex = 0;
   var current = "";
   var over = false;
-  var recorded = true;   // practice-mode guard against double-recording
+  var recorded = true;
   var keyState = {};
   var stats;
   var toastTimer;
+
+  // ---- subjects ----
+  function getSubject(id) {
+    for (var i = 0; i < SUBJECTS.length; i++) if (SUBJECTS[i].id === id) return SUBJECTS[i];
+    return SUBJECTS[0];
+  }
+  function getTerms() { return getSubject(subject).terms; }
+  function maxDailyStreak(s) {
+    var m = 0;
+    if (s.daily) {
+      var keys = Object.keys(s.daily);
+      for (var i = 0; i < keys.length; i++) if (s.daily[keys[i]].streak > m) m = s.daily[keys[i]].streak;
+    }
+    return m;
+  }
 
   // ---- date helpers ----
   function pad(n) { return (n < 10 ? "0" : "") + n; }
@@ -67,20 +147,28 @@
     d.setUTCDate(d.getUTCDate() + delta);
     return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
   }
-  function dailyIndex(key) {
+  function dailyIndex(key, total) {
     var p = key.split("-").map(Number);
     var days = Math.floor(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000);
-    return ((days % TERMS.length) + TERMS.length) % TERMS.length;
+    return ((days % total) + total) % total;
   }
 
-  // ---- persistence (degrades to in-memory if localStorage is unavailable) ----
+  // ---- persistence ----
+  function freshDaily() {
+    return { streak: 0, best: 0, last: null, today: { date: null, guesses: [], finished: false, won: false } };
+  }
   function freshStats() {
     return {
       played: 0, wins: 0, streak: 0, best: 0, score: 0, badges: [],
-      dailyStreak: 0, dailyBest: 0, dailyLast: null,
-      dailyToday: { date: null, guesses: [], finished: false, won: false },
-      mode: "daily"
+      daily: {}, subjectWins: {}, mode: "daily", subject: SUBJECTS[0].id
     };
+  }
+  function ensureDaily(id) {
+    if (!stats.daily[id]) stats.daily[id] = freshDaily();
+    return stats.daily[id];
+  }
+  function ensureSubjectWins(id) {
+    if (typeof stats.subjectWins[id] !== "number") stats.subjectWins[id] = 0;
   }
 
   function loadStats() {
@@ -89,22 +177,37 @@
       var raw = window.localStorage.getItem(STORE_KEY);
       if (raw) {
         var o = JSON.parse(raw);
-        ["played", "wins", "streak", "best", "score", "dailyStreak", "dailyBest"].forEach(function (k) {
+        ["played", "wins", "streak", "best", "score"].forEach(function (k) {
           if (typeof o[k] === "number") s[k] = o[k];
         });
         if (Array.isArray(o.badges)) s.badges = o.badges;
-        if (typeof o.dailyLast === "string") s.dailyLast = o.dailyLast;
         if (o.mode === "daily" || o.mode === "practice") s.mode = o.mode;
-        if (o.dailyToday && typeof o.dailyToday === "object") {
-          s.dailyToday = {
-            date: typeof o.dailyToday.date === "string" ? o.dailyToday.date : null,
-            guesses: Array.isArray(o.dailyToday.guesses) ? o.dailyToday.guesses : [],
-            finished: !!o.dailyToday.finished,
-            won: !!o.dailyToday.won
-          };
+        if (typeof o.subject === "string") s.subject = o.subject;
+        if (o.daily && typeof o.daily === "object") {
+          Object.keys(o.daily).forEach(function (k) {
+            var d = o.daily[k];
+            if (!d || typeof d !== "object") return;
+            s.daily[k] = {
+              streak: typeof d.streak === "number" ? d.streak : 0,
+              best:   typeof d.best   === "number" ? d.best   : 0,
+              last:   typeof d.last   === "string" ? d.last   : null,
+              today:  d.today && typeof d.today === "object" ? {
+                date:     typeof d.today.date === "string" ? d.today.date : null,
+                guesses:  Array.isArray(d.today.guesses) ? d.today.guesses : [],
+                finished: !!d.today.finished,
+                won:      !!d.today.won
+              } : freshDaily().today
+            };
+          });
+        }
+        if (o.subjectWins && typeof o.subjectWins === "object") {
+          Object.keys(o.subjectWins).forEach(function (k) {
+            if (typeof o.subjectWins[k] === "number") s.subjectWins[k] = o.subjectWins[k];
+          });
         }
       }
     } catch (e) { /* ignore */ }
+    if (!SUBJECTS.some(function (sub) { return sub.id === s.subject; })) s.subject = SUBJECTS[0].id;
     return s;
   }
 
@@ -117,8 +220,9 @@
     document.getElementById("wl-score").textContent = stats.score;
     document.getElementById("wl-wins").textContent = stats.wins;
     if (mode === "daily") {
-      document.getElementById("wl-streak").textContent = stats.dailyStreak;
-      document.getElementById("wl-best").textContent = stats.dailyBest;
+      var d = ensureDaily(subject);
+      document.getElementById("wl-streak").textContent = d.streak;
+      document.getElementById("wl-best").textContent = d.best;
       document.getElementById("wl-streak-label").textContent = "Day streak";
       document.getElementById("wl-best-label").textContent = "Best run";
     } else {
@@ -137,16 +241,9 @@
       var el = document.createElement("div");
       el.className = "wl-badge" + (earned ? " earned" : "");
       el.title = earned ? b.desc : b.desc + " (locked)";
-
-      var icon = document.createElement("span");
-      icon.className = "wl-badge-icon";
-      icon.textContent = b.icon;
-      var name = document.createElement("span");
-      name.className = "wl-badge-name";
-      name.textContent = b.name;
-
-      el.appendChild(icon);
-      el.appendChild(name);
+      var icon = document.createElement("span"); icon.className = "wl-badge-icon"; icon.textContent = b.icon;
+      var name = document.createElement("span"); name.className = "wl-badge-name"; name.textContent = b.name;
+      el.appendChild(icon); el.appendChild(name);
       list.appendChild(el);
     });
   }
@@ -155,10 +252,22 @@
     document.getElementById("wl-mode-daily").classList.toggle("active", mode === "daily");
     document.getElementById("wl-mode-practice").classList.toggle("active", mode === "practice");
     document.getElementById("wl-new").style.display = (mode === "practice") ? "" : "none";
+    var subName = getSubject(subject).name;
     var note = document.getElementById("wl-mode-note");
     note.textContent = (mode === "daily")
-      ? "Daily puzzle for " + todayKey() + " — one word a day, the same for everyone."
-      : "Practice — unlimited random words.";
+      ? subName + " · daily for " + todayKey() + " — one word a day per subject."
+      : subName + " · practice — unlimited random words.";
+  }
+
+  function populateSubjects() {
+    var sel = document.getElementById("wl-subject-select");
+    sel.innerHTML = "";
+    SUBJECTS.forEach(function (s) {
+      var opt = document.createElement("option");
+      opt.value = s.id; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+    sel.value = subject;
   }
 
   function showToast(text) {
@@ -187,6 +296,8 @@
     var points = 0;
     if (won) {
       stats.wins++;
+      ensureSubjectWins(subject);
+      stats.subjectWins[subject]++;
       stats.streak++;
       if (stats.streak > stats.best) stats.best = stats.streak;
       points = (MAX_GUESSES - guesses + 1) * 10 + stats.streak * 5;
@@ -207,21 +318,22 @@
     return recordResult(won, guesses);
   }
 
-  function updateDailyStreak(won, dateKey) {
+  function updateDailyStreakFor(d, won, dateKey) {
     if (won) {
-      stats.dailyStreak = (stats.dailyLast === shiftDate(dateKey, -1)) ? stats.dailyStreak + 1 : 1;
-      stats.dailyLast = dateKey;
-      if (stats.dailyStreak > stats.dailyBest) stats.dailyBest = stats.dailyStreak;
+      d.streak = (d.last === shiftDate(dateKey, -1)) ? d.streak + 1 : 1;
+      d.last = dateKey;
+      if (d.streak > d.best) d.best = d.streak;
     } else {
-      stats.dailyStreak = 0;
+      d.streak = 0;
     }
   }
 
   function dailyFinish(won, guesses) {
-    if (stats.dailyToday.finished) return null;
-    stats.dailyToday.finished = true;
-    stats.dailyToday.won = won;
-    updateDailyStreak(won, stats.dailyToday.date);
+    var d = ensureDaily(subject);
+    if (d.today.finished) return null;
+    d.today.finished = true;
+    d.today.won = won;
+    updateDailyStreakFor(d, won, d.today.date);
     return recordResult(won, guesses);
   }
 
@@ -258,9 +370,7 @@
         if (group === "ENTER" || group === "DEL") {
           krow.appendChild(makeKey(group, true));
         } else {
-          group.split("").forEach(function (ch) {
-            krow.appendChild(makeKey(ch, false));
-          });
+          group.split("").forEach(function (ch) { krow.appendChild(makeKey(ch, false)); });
         }
       });
       keyboard.appendChild(krow);
@@ -277,18 +387,13 @@
     return key;
   }
 
-  function rank(state) {
-    return { absent: 0, present: 1, correct: 2 }[state];
-  }
+  function rank(state) { return { absent: 0, present: 1, correct: 2 }[state]; }
 
   function scoreGuess(guess) {
     var result = new Array(answer.length).fill("absent");
     var counts = {};
     var i, ch;
-    for (i = 0; i < answer.length; i++) {
-      ch = answer[i];
-      counts[ch] = (counts[ch] || 0) + 1;
-    }
+    for (i = 0; i < answer.length; i++) { ch = answer[i]; counts[ch] = (counts[ch] || 0) + 1; }
     for (i = 0; i < answer.length; i++) {
       if (guess[i] === answer[i]) { result[i] = "correct"; counts[guess[i]]--; }
     }
@@ -332,11 +437,7 @@
   function handleKey(label) {
     if (over) return;
     if (label === "ENTER") return submitGuess();
-    if (label === "DEL") {
-      current = current.slice(0, -1);
-      refreshCurrentRow();
-      return;
-    }
+    if (label === "DEL") { current = current.slice(0, -1); refreshCurrentRow(); return; }
     if (/^[A-Z]$/.test(label) && current.length < answer.length) {
       current += label;
       refreshCurrentRow();
@@ -349,7 +450,7 @@
       return;
     }
     paintRow(rowIndex, current);
-    if (mode === "daily") stats.dailyToday.guesses.push(current);
+    if (mode === "daily") ensureDaily(subject).today.guesses.push(current);
 
     var win = (current === answer);
     if (win) {
@@ -357,7 +458,7 @@
       var res = (mode === "daily") ? dailyFinish(true, rowIndex + 1) : practiceFinish(true, rowIndex + 1);
       var pts = res ? res.points : 0;
       setMessage(mode === "daily"
-        ? "Solved today's Wordlet! +" + pts + " pts — back tomorrow."
+        ? "Solved today's " + getSubject(subject).name + " Wordlet! +" + pts + " pts — back tomorrow."
         : "Correct! It's " + answer + "  +" + pts + " pts", "#6aaa64");
       announceBadges(res ? res.newBadges : []);
     } else {
@@ -377,50 +478,45 @@
 
   // ---- game setup ----
   function startPractice() {
-    var t = TERMS[Math.floor(Math.random() * TERMS.length)];
+    var terms = getTerms();
+    var t = terms[Math.floor(Math.random() * terms.length)];
     answer = t.term;
     clueEl.textContent = t.clue;
-    rowIndex = 0;
-    current = "";
-    over = false;
-    recorded = false;
-    keyState = {};
+    rowIndex = 0; current = ""; over = false; recorded = false; keyState = {};
     setMessage("");
     buildBoard();
     buildKeyboard();
   }
 
   function startDaily() {
+    var d = ensureDaily(subject);
     var key = todayKey();
-    if (stats.dailyToday.date !== key) {
-      stats.dailyToday = { date: key, guesses: [], finished: false, won: false };
+    if (d.today.date !== key) {
+      d.today = { date: key, guesses: [], finished: false, won: false };
       saveStats();
     }
-    var t = TERMS[dailyIndex(key)];
+    var terms = getTerms();
+    var t = terms[dailyIndex(key, terms.length)];
     answer = t.term;
     clueEl.textContent = t.clue;
-    rowIndex = 0;
-    current = "";
-    over = false;
-    recorded = true;   // daily uses dailyToday.finished as its guard
-    keyState = {};
+    rowIndex = 0; current = ""; over = false; recorded = true; keyState = {};
     buildBoard();
     buildKeyboard();
 
-    stats.dailyToday.guesses.forEach(function (g) {
+    d.today.guesses.forEach(function (g) {
       if (g.length !== answer.length) return;
       paintRow(rowIndex, g);
       rowIndex++;
     });
 
-    if (stats.dailyToday.finished) {
+    if (d.today.finished) {
       over = true;
-      setMessage(stats.dailyToday.won
-        ? "You solved today's Wordlet — come back tomorrow!"
+      setMessage(d.today.won
+        ? "You solved today's " + getSubject(subject).name + " Wordlet — come back tomorrow!"
         : "Today's word was " + answer + " — come back tomorrow.",
-        stats.dailyToday.won ? "#6aaa64" : "#b00020");
+        d.today.won ? "#6aaa64" : "#b00020");
     } else {
-      setMessage(stats.dailyToday.guesses.length ? "Resumed today's puzzle." : "");
+      setMessage(d.today.guesses.length ? "Resumed today's puzzle." : "");
     }
   }
 
@@ -434,9 +530,16 @@
 
   function switchMode(m) {
     if (mode === "practice") maybeAbandon();
-    mode = m;
-    stats.mode = m;
-    saveStats();
+    mode = m; stats.mode = m; saveStats();
+    updateModeUI();
+    renderStats();
+    startGame();
+  }
+
+  function switchSubject(id) {
+    if (!SUBJECTS.some(function (s) { return s.id === id; })) return;
+    maybeAbandon();
+    subject = id; stats.subject = id; saveStats();
     updateModeUI();
     renderStats();
     startGame();
@@ -445,6 +548,7 @@
   // ---- events ----
   document.getElementById("wl-mode-daily").addEventListener("click", function () { switchMode("daily"); });
   document.getElementById("wl-mode-practice").addEventListener("click", function () { switchMode("practice"); });
+  document.getElementById("wl-subject-select").addEventListener("change", function (e) { switchSubject(e.target.value); });
 
   document.getElementById("wl-new").addEventListener("click", function () {
     if (mode !== "practice") return;
@@ -463,9 +567,9 @@
 
   document.getElementById("wl-reset").addEventListener("click", function () {
     if (!window.confirm("Reset your score, streaks and badges?")) return;
-    var keepMode = mode;
+    var keepMode = mode, keepSubject = subject;
     stats = freshStats();
-    stats.mode = keepMode;
+    stats.mode = keepMode; stats.subject = keepSubject;
     saveStats();
     renderStats();
     renderBadges();
@@ -480,9 +584,18 @@
     else if (/^[a-zA-Z]$/.test(e.key)) { handleKey(e.key.toUpperCase()); }
   });
 
+  // ---- service worker (PWA) ----
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () { /* ignore */ });
+    });
+  }
+
   // ---- init ----
   stats = loadStats();
   mode = stats.mode;
+  subject = stats.subject;
+  populateSubjects();
   updateModeUI();
   renderStats();
   renderBadges();

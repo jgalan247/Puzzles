@@ -3,16 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wordlet — CS Vocabulary Game</title>
+  <title>Wordlet — Vocabulary Game</title>
+  <meta name="description" content="A Wordle-style vocabulary game for school subjects.">
+  <meta name="theme-color" content="#157878">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Wordlet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="wl-header">
     <h1>Wordlet</h1>
-    <p>Read the definition, then guess the computer-science term.</p>
+    <p>Read the definition, then guess the term.</p>
   </header>
 
   <main id="wordlet">
+    <div class="wl-subject-row">
+      <label for="wl-subject-select" class="wl-subject-label">Subject</label>
+      <select id="wl-subject-select" class="wl-subject-select" aria-label="Subject"></select>
+    </div>
+
     <div class="wl-modes" role="tablist" aria-label="Game mode">
       <button id="wl-mode-daily" class="wl-mode" type="button" role="tab">Daily</button>
       <button id="wl-mode-practice" class="wl-mode" type="button" role="tab">Practice</button>

@@ -1,0 +1,16 @@
+{
+  "name": "Wordlet",
+  "short_name": "Wordlet",
+  "description": "A Wordle-style vocabulary game for school subjects.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafafa",
+  "theme_color": "#157878",
+  "categories": ["education", "games"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

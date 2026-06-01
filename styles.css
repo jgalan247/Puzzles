@@ -74,6 +74,22 @@ body {
 }
 .wl-controls button:hover { background: #0f5c5c; }
 
+/* subject dropdown */
+.wl-subject-row {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin: 8px 0 14px;
+}
+.wl-subject-label { font-weight: 700; color: #333; font-size: .95em; }
+.wl-subject-select {
+  background: #fff; border: 1px solid #d0d0d0; border-radius: 6px;
+  padding: 6px 30px 6px 10px; font-size: .95em; font-weight: 600; color: var(--wl-accent);
+  cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23157878'/></svg>");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.wl-subject-select:focus { outline: 2px solid var(--wl-accent); outline-offset: 1px; }
+
 /* mode toggle */
 .wl-modes {
   display: flex; justify-content: center; gap: 0; margin: 4px 0 6px;
