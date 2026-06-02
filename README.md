@@ -16,7 +16,7 @@ Installs as a **PWA** and works fully offline after first load.
 
 ## Subjects
 
-A dropdown at the top picks the subject: **Computer Science · Business · Art · English · French · Spanish · Portuguese**.
+A dropdown at the top picks the subject: **Computer Science · Business · Art · English Language · English Literature · French · Spanish · Portuguese**.
 Each subject has its own term pool and its own independent **daily puzzle and day-streak**, so a student can do all of the dailies in a session.
 
 For the **MFL** subjects (French, Spanish, Portuguese), play is bidirectional:

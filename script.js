@@ -64,7 +64,26 @@
       ]
     },
     {
-      id: "english", name: "English", terms: [
+      id: "english-language", name: "English Language", terms: [
+        { term: "NOUN",        clue: "A word for a person, place, thing or idea." },
+        { term: "VERB",        clue: "A word that expresses an action or state of being." },
+        { term: "ADJECTIVE",   clue: "A word that describes or modifies a noun." },
+        { term: "ADVERB",      clue: "A word that describes a verb, adjective or another adverb." },
+        { term: "PRONOUN",     clue: "A word used in place of a noun, such as 'he', 'she' or 'it'." },
+        { term: "CLAUSE",      clue: "A group of words containing a subject and a verb." },
+        { term: "PHRASE",      clue: "A small group of words that does not contain a subject and verb." },
+        { term: "TENSE",       clue: "The form of a verb showing when an action happens." },
+        { term: "SYNONYM",     clue: "A word with the same or very similar meaning to another." },
+        { term: "ANTONYM",     clue: "A word with the opposite meaning to another." },
+        { term: "IDIOM",       clue: "A phrase whose meaning cannot be worked out from the literal words." },
+        { term: "ETYMOLOGY",   clue: "The study of the origin and history of words." },
+        { term: "RHETORIC",    clue: "The art of using language persuasively in speech or writing." },
+        { term: "COLLOQUIAL",  clue: "Informal language typical of everyday conversation." },
+        { term: "DENOTATION",  clue: "The literal, dictionary meaning of a word." }
+      ]
+    },
+    {
+      id: "english-literature", name: "English Literature", terms: [
         { term: "METAPHOR",      clue: "Describing one thing as if it were another, without using 'like' or 'as'." },
         { term: "SIMILE",        clue: "A comparison between two things using 'like' or 'as'." },
         { term: "ALLITERATION",  clue: "Repetition of the same initial consonant sound across nearby words." },
@@ -300,6 +319,16 @@
         }
       }
     } catch (e) { /* ignore */ }
+    // migrate the old "english" subject id to "english-literature"
+    if (s.daily.english && !s.daily["english-literature"]) {
+      s.daily["english-literature"] = s.daily.english;
+      delete s.daily.english;
+    }
+    if (typeof s.subjectWins.english === "number" && typeof s.subjectWins["english-literature"] !== "number") {
+      s.subjectWins["english-literature"] = s.subjectWins.english;
+      delete s.subjectWins.english;
+    }
+    if (s.subject === "english") s.subject = "english-literature";
     if (!SUBJECTS.some(function (sub) { return sub.id === s.subject; })) s.subject = SUBJECTS[0].id;
     return s;
   }
